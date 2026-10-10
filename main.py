@@ -1,0 +1,163 @@
+import sys
+from datetime import date
+from api_client import JadwalSalatAPI
+from config import load_config, save_config, CONFIG_FILE_PATH
+from dashboard import TerminalDashboard, hitung_waktu_iqamat
+
+def tampilkan_jadwal(jadwal_item: dict, cfg: dict):
+    print("-------------------------------------------------------")
+    print(f" Tanggal : {jadwal_item.get('tanggal', '-')}")
+    print("-------------------------------------------------------")
+    print(f" IMSAK   : {jadwal_item.get('imsak', '-')}")
+
+    subuh = jadwal_item.get('subuh', '-')
+    subuh_iq = hitung_waktu_iqamat(subuh, cfg.get('subuh_iqamat', 15))
+    print(f" SUBUH   : {subuh}  (Iqamat: {subuh_iq} [+ {cfg.get('subuh_iqamat', 15)}m])")
+
+    print(f" TERBIT  : {jadwal_item.get('terbit', '-')}")
+    print(f" DHUHA   : {jadwal_item.get('dhuha', '-')}")
+
+    dzuhur = jadwal_item.get('dzuhur', '-')
+    dzuhur_iq = hitung_waktu_iqamat(dzuhur, cfg.get('dzuhur_iqamat', 20))
+    print(f" DZUHUR  : {dzuhur}  (Iqamat: {dzuhur_iq} [+ {cfg.get('dzuhur_iqamat', 20)}m])")
+
+    ashar = jadwal_item.get('ashar', '-')
+    ashar_iq = hitung_waktu_iqamat(ashar, cfg.get('ashar_iqamat', 15))
+    print(f" ASHAR   : {ashar}  (Iqamat: {ashar_iq} [+ {cfg.get('ashar_iqamat', 15)}m])")
+
+    maghrib = jadwal_item.get('maghrib', '-')
+    maghrib_iq = hitung_waktu_iqamat(maghrib, cfg.get('maghrib_iqamat', 10))
+    print(f" MAGHRIB : {maghrib}  (Iqamat: {maghrib_iq} [+ {cfg.get('maghrib_iqamat', 10)}m])")
+
+    isya = jadwal_item.get('isya', '-')
+    isya_iq = hitung_waktu_iqamat(isya, cfg.get('isya_iqamat', 15))
+    print(f" ISYA    : {isya}  (Iqamat: {isya_iq} [+ {cfg.get('isya_iqamat', 15)}m])")
+    print("-------------------------------------------------------")
+
+def print_help():
+    print("""Penggunaan Aplikasi Jadwal Salat:
+  python3 main.py                   -> Buka Dasbor Terminal (Jam digital, jadwal salat, & iqamat)
+  python3 main.py --cli             -> Tampilkan jadwal salat versi teks cepat
+  python3 main.py <nama_kota>       -> Cek jadwal kota tertentu versi teks
+  python3 main.py --set <nama_kota> -> Cari kota dan simpan ID ke config.json
+  python3 main.py --set-id <id>     -> Simpan ID lokasi langsung ke config.json
+  python3 main.py --set-judul <teks>-> Ubah judul dasbor di config.json
+  python3 main.py --set-iqamat <salat> <menit> -> Atur jeda iqamat (subuh/dzuhur/ashar/maghrib/isya)
+  python3 main.py --config          -> Tampilkan konfigurasi saat ini
+""")
+
+def main():
+    api = JadwalSalatAPI()
+    today = date.today()
+    cfg = load_config()
+
+    if len(sys.argv) > 1:
+        arg = sys.argv[1]
+
+        if arg in ("-h", "--help"):
+            print_help()
+            return
+
+        if arg == "--dashboard":
+            dashboard = TerminalDashboard()
+            dashboard.run()
+            return
+
+        if arg == "--config":
+            print("=== Konfigurasi Dasbor Tersimpan ===")
+            print(f"File  : {CONFIG_FILE_PATH}")
+            print(f"Judul : {cfg.get('judul')}")
+            print(f"ID    : {cfg.get('lokasi_id')}")
+            print(f"Lokasi: {cfg.get('lokasi_nama')}")
+            print("--- Waktu Iqamat (menit setelah azan) ---")
+            print(f"Subuh  : {cfg.get('subuh_iqamat', 15)} menit")
+            print(f"Dzuhur : {cfg.get('dzuhur_iqamat', 20)} menit")
+            print(f"Ashar  : {cfg.get('ashar_iqamat', 15)} menit")
+            print(f"Maghrib: {cfg.get('maghrib_iqamat', 10)} menit")
+            print(f"Isya'  : {cfg.get('isya_iqamat', 15)} menit")
+            return
+
+        if arg == "--set-judul" and len(sys.argv) > 2:
+            judul_baru = " ".join(sys.argv[2:])
+            save_config(judul=judul_baru)
+            print(f"[✓] Berhasil memperbarui judul dasbor di config.json:")
+            print(f"    Judul: {judul_baru}")
+            return
+
+        if arg == "--set-iqamat" and len(sys.argv) > 3:
+            salat_key = sys.argv[2].lower().replace("'", "")
+            try:
+                menit_val = int(sys.argv[3])
+            except ValueError:
+                print("[-] Nilai menit harus berupa angka bulat.")
+                return
+
+            valid_keys = ["subuh", "dzuhur", "ashar", "maghrib", "isya"]
+            if salat_key not in valid_keys:
+                print(f"[-] Salat '{salat_key}' tidak valid. Pilihan: {', '.join(valid_keys)}")
+                return
+
+            cfg_key = f"{salat_key}_iqamat"
+            save_config(**{cfg_key: menit_val})
+            print(f"[✓] Berhasil memperbarui waktu iqamat di config.json:")
+            print(f"    {salat_key.capitalize()}: +{menit_val} menit setelah azan")
+            return
+
+        if arg == "--set" and len(sys.argv) > 2:
+            query_kota = " ".join(sys.argv[2:])
+            print(f"[+] Mencari kota: '{query_kota}'...")
+            hasil = api.cari_kota(query_kota)
+            if not hasil:
+                print(f"[-] Kota '{query_kota}' tidak ditemukan.")
+                return
+            
+            pilihan = hasil[0]
+            save_config(lokasi_id=pilihan["id"], lokasi_nama=pilihan["lokasi"])
+            print(f"[✓] Berhasil menyimpan lokasi ke config.json:")
+            print(f"    ID    : {pilihan['id']}")
+            print(f"    Lokasi: {pilihan['lokasi']}")
+            return
+
+        if arg == "--set-id" and len(sys.argv) > 2:
+            target_id = sys.argv[2]
+            semua = api.get_semua_kota()
+            matched = [k for k in semua if k["id"] == str(target_id)]
+            lokasi_nama = matched[0]["lokasi"] if matched else f"ID {target_id}"
+            save_config(lokasi_id=target_id, lokasi_nama=lokasi_nama)
+            print(f"[✓] Berhasil menyimpan lokasi ke config.json:")
+            print(f"    ID    : {target_id}")
+            print(f"    Lokasi: {lokasi_nama}")
+            return
+
+        if arg == "--cli":
+            kota_id = cfg.get("lokasi_id", "1204")
+            nama_lokasi = cfg.get("lokasi_nama", "KAB. BOGOR")
+        else:
+            # Jika user memberikan nama kota secara langsung
+            nama_kota = " ".join(sys.argv[1:])
+            print(f"[+] Mencari jadwal untuk: '{nama_kota}'...")
+            hasil = api.cari_kota(nama_kota)
+            if not hasil:
+                print(f"[-] Kota '{nama_kota}' tidak ditemukan.")
+                return
+            kota_terpilih = hasil[0]
+            kota_id = kota_terpilih["id"]
+            nama_lokasi = kota_terpilih["lokasi"]
+
+        print(f"[+] Mengambil jadwal salat hari ini ({today.strftime('%Y-%m-%d')})...\n")
+        data_jadwal = api.get_jadwal_harian(kota_id, today)
+        
+        if "jadwal" in data_jadwal:
+            jadwal = data_jadwal["jadwal"]
+            daerah = data_jadwal.get("daerah", "")
+            print(f"JADWAL SALAT: {nama_lokasi}{' - ' + daerah if daerah else ''}")
+            tampilkan_jadwal(jadwal, cfg)
+        else:
+            print("[-] Gagal memuat jadwal.")
+    else:
+        # Default tanpa argumen: Jalankan dasbor terminal interaktif
+        dashboard = TerminalDashboard()
+        dashboard.run()
+
+if __name__ == "__main__":
+    main()
