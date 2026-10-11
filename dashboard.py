@@ -180,84 +180,86 @@ DIGITS_5 = {
 
 
 # ==========================================
-# FONT DIGITAL 4-BARIS KECIL (HH:MM) - untuk kartu salat/iqamat
-# ~1/4 ukuran DIGITS_5, 6 karakter lebar per digit (semua konsisten)
-# Menggunakan pola 7-segment standar untuk keterbacaan maksimal
+# FONT DIGITAL PEACLOCK STYLE (7-SEGMENT)
+# Based on peaclock's digital view (block 2x1, 7-segment)
+# Main clock: 5 rows × 12 cols per digit (block 2x1, 7-seg)
+# Small clock: 4 rows × 10 cols per digit
 # ==========================================
-DIGITS_3 = {
-    '0': [
-        ' ████ ',
-        '█    █',
-        '█    █',
-        ' ████ '
-    ],
-    '1': [
-        '      ',
-        '     █',
-        '     █',
-        '      '
-    ],
-    '2': [
-        ' ████ ',
-        ' █████',
-        '█████ ',
-        ' ████ '
-    ],
-    '3': [
-        ' ████ ',
-        ' █████',
-        ' █████',
-        ' ████ '
-    ],
-    '4': [
-        '      ',
-        '██████',
-        ' █████',
-        '      '
-    ],
-    '5': [
-        ' ████ ',
-        '█████ ',
-        ' █████',
-        ' ████ '
-    ],
-    '6': [
-        ' ████ ',
-        '█████ ',
-        '██████',
-        ' ████ '
-    ],
-    '7': [
-        ' ████ ',
-        '     █',
-        '     █',
-        '      '
-    ],
-    '8': [
-        ' ████ ',
-        '██████',
-        '██████',
-        ' ████ '
-    ],
-    '9': [
-        ' ████ ',
-        '██████',
-        ' █████',
-        ' ████ '
-    ],
-    ':': [
-        '      ',
-        '  ██  ',
-        '      ',
-        '  ██  '
-    ],
-    ' ': [
-        '      ',
-        '      ',
-        '      ',
-        '      '
-    ]
+
+# 7-segment patterns for peaclock digital style
+# Each segment is a 2×1 block (██ for on, '  ' for off)
+# Layout:  aaaa  (top)
+#        f    b (upper)
+#        gggg  (middle)
+#        e    c (lower)
+#        dddd  (bottom)
+
+SEG_ON = '██'
+SEG_OFF = '  '
+
+# 7-segment patterns: a, b, c, d, e, f, g
+SEGMENTS = {
+    '0': 'abcefd',  # a,b,c,d,e,f (no g)
+    '1': 'bc',       # b,c only
+    '2': 'abged',   # a,b,g,e,d
+    '3': 'abgcd',   # a,b,c,d,g
+    '4': 'fgbc',    # f,g,b,c
+    '5': 'afgcd',   # a,f,g,c,d
+    '6': 'afgcde',  # a,f,g,c,d,e
+    '7': 'abc',     # a,b,c
+    '8': 'abcdefg', # all
+    '9': 'abfgcd',  # a,b,f,g,c,d
 }
+
+def build_peaclock_digit_5rows(segs):
+    """Build 5-row peaclock digital digit (block 2x1 style)"""
+    # Each row is 12 chars wide (6 segments × 2 chars)
+    rows = [''] * 5
+    
+    # Row 0: segment a (top horizontal) - 6 blocks wide
+    row0 = ''
+    for _ in range(6):
+        row0 += SEG_ON if 'a' in segs else SEG_OFF
+    rows[0] = row0
+    
+    # Rows 1-2: segments f (left) and b (right) - 2 rows for upper verticals
+    row1 = row2 = ''
+    for _ in range(2):
+        row1 += SEG_ON if 'f' in segs else SEG_OFF
+    for _ in range(4):
+        row1 += SEG_OFF  # middle gap
+    for _ in range(2):
+        row1 += SEG_ON if 'b' in segs else SEG_OFF
+    rows[1] = row1
+    
+    for _ in range(2):
+        row2 += SEG_ON if 'f' in segs else SEG_OFF
+    for _ in range(4):
+        row2 += SEG_OFF
+    for _ in range(2):
+        row2 += SEG_ON if 'b' in segs else SEG_OFF
+    rows[2] = row2
+    
+    # Row 3: segment g (middle horizontal)
+    row3 = ''
+    for _ in range(6):
+        row3 += SEG_ON if 'g' in segs else SEG_OFF
+    rows[3] = row3
+    
+    # Rows 4: segments e (left) and c (right) - lower verticals + d (bottom)
+    row4 = ''
+    for _ in range(2):
+        row4 += SEG_ON if 'e' in segs else SEG_OFF
+    for _ in range(4):
+        row4 += SEG_OFF
+    for _ in range(2):
+        row4 += SEG_ON if 'c' in segs else SEG_OFF
+    rows[4] = row4
+    
+    # Actually peaclock uses 5 rows for digital view with block 2x1
+    # Let me reconsider - peaclock digital view has different rendering
+    # Let me use a simpler but accurate approach
+    pass
 
 
 NAMA_HARI = {
@@ -388,20 +390,98 @@ class TerminalDashboard:
         diff = imsak_besok - now_dt
         return "IMSAK", diff
 
-    def render_clock_lines(self, time_str: str) -> List[str]:
-        """Merender jam digital 5 baris."""
-        lines = ['', '', '', '', '']
+    def render_peaclock_time_main(self, time_str: str) -> List[str]:
+        """Render time in peaclock digital style (5 rows, block 2x1)."""
+        lines = [''] * 5
         for ch in time_str:
-            glyph = DIGITS_5.get(ch, DIGITS_5[' '])
+            if ch == ':':
+                glyph = self._build_peaclock_colon_main()
+            elif ch == ' ':
+                glyph = ['     '] * 5
+            else:
+                glyph = self._build_peaclock_digit_main(SEGMENTS.get(ch, ''))
             for i in range(5):
                 lines[i] += glyph[i]
         return lines
 
-    def render_small_clock_lines(self, time_str: str) -> List[str]:
-        """Merender jam digital 4 baris (untuk kartu salat/iqamat)."""
-        lines = ['', '', '', '']
+    def render_peaclock_time_small(self, time_str: str) -> List[str]:
+        """Render time in peaclock digital style (4 rows, small)."""
+        lines = [''] * 4
         for ch in time_str:
-            glyph = DIGITS_3.get(ch, DIGITS_3[' '])
+            if ch == ':':
+                glyph = self._build_peaclock_colon_small()
+            elif ch == ' ':
+                glyph = ['     '] * 4
+            else:
+                glyph = self._build_peaclock_digit_small(SEGMENTS.get(ch, ''))
+            for i in range(4):
+                lines[i] += glyph[i]
+        return lines
+
+    def _build_peaclock_digit_main(self, segs: str) -> List[str]:
+        """Build 5-row peaclock digital digit (block 2x1 style) - 12 chars wide."""
+        rows = [''] * 5
+        # Row 0: segment a (top) - 6 blocks
+        rows[0] = (SEG_ON if 'a' in segs else SEG_OFF) * 6
+        # Rows 1-2: f (left) and b (right)
+        for r in range(1, 3):
+            left = SEG_ON * 2 if 'f' in segs else SEG_OFF * 2
+            mid = SEG_OFF * 4
+            right = SEG_ON * 2 if 'b' in segs else SEG_OFF * 2
+            rows[r] = left + SEG_OFF * 4 + right
+        # Row 3: segment g (middle)
+        rows[3] = (SEG_ON if 'g' in segs else SEG_OFF) * 6
+        # Row 4: e (left), c (right)
+        rows[4] = (SEG_ON * 2 if 'e' in segs else SEG_OFF * 2) + SEG_OFF * 4 + (SEG_ON * 2 if 'c' in segs else SEG_OFF * 2)
+        return rows
+
+    def _build_peaclock_digit_small(self, segs: str) -> List[str]:
+        """Build 4-row small peaclock digit - 10 chars wide."""
+        rows = [''] * 4
+        # Row 0: segment a
+        rows[0] = (SEG_ON if 'a' in segs else SEG_OFF) * 5
+        # Row 1: f and b
+        left = SEG_ON * 2 if 'f' in segs else SEG_OFF * 2
+        right = SEG_ON * 2 if 'b' in segs else SEG_OFF * 2
+        rows[1] = left + SEG_OFF * 3 + right
+        # Row 2: segment g (middle)
+        rows[2] = (SEG_ON if 'g' in segs else SEG_OFF) * 5
+        # Row 3: e, c, d
+        rows[3] = (SEG_ON * 2 if 'e' in segs else SEG_OFF * 2) + SEG_OFF * 3 + (SEG_ON * 2 if 'c' in segs else SEG_OFF * 2)
+        return rows
+
+    def _build_peaclock_colon_main(self) -> List[str]:
+        """Build main clock colon (5 rows)."""
+        return ['     ', '  ██  ', '     ', '  ██  ', '     ']
+
+    def _build_peaclock_colon_small(self) -> List[str]:
+        """Build small clock colon (4 rows)."""
+        return ['     ', '  ██  ', '     ', '  ██  ']
+
+    def render_peaclock_time_main(self, time_str: str) -> List[str]:
+        """Render time in peaclock digital style (5 rows, block 2x1)."""
+        lines = [''] * 5
+        for ch in time_str:
+            if ch == ':':
+                glyph = self._build_peaclock_colon_main()
+            elif ch == ' ':
+                glyph = ['     '] * 5
+            else:
+                glyph = self._build_peaclock_digit_main(SEGMENTS.get(ch, ''))
+            for i in range(5):
+                lines[i] += glyph[i]
+        return lines
+
+    def render_peaclock_time_small(self, time_str: str) -> List[str]:
+        """Render time in peaclock digital style (4 rows, small)."""
+        lines = [''] * 4
+        for ch in time_str:
+            if ch == ':':
+                glyph = self._build_peaclock_colon_small()
+            elif ch == ' ':
+                glyph = ['     '] * 4
+            else:
+                glyph = self._build_peaclock_digit_small(SEGMENTS.get(ch, ''))
             for i in range(4):
                 lines[i] += glyph[i]
         return lines
@@ -482,19 +562,19 @@ class TerminalDashboard:
 
             # Special handling for JAM cell (key=None) - render big clock
             if key is None:
-                # Render big clock (5 rows)
+                # Render big clock (5 rows) - peaclock digital style
                 time_str = now.strftime("%H:%M:%S")
-                clock_lines = self.render_clock_lines(time_str)
+                clock_lines = self.render_peaclock_time_main(time_str)
                 for line in clock_lines:
                     pad_w = max(0, (cell_w - len(line)) // 2)
                     lines.append(f"{border_c}┃{' ' * pad_w}{COLOR_CLOCK}{BOLD}{line}{' ' * (cell_w - 2 - pad_w - len(line))}{border_c}┃{RESET}")
                 # Add 2 empty rows to match 7-line height (2 label + 5 clock = 7)
             else:
-                # Regular prayer cell - small clock font (4 rows)
+                # Regular prayer cell - small clock font (4 rows) - peaclock digital style
                 waktu_val = "--:--"
                 waktu_val = jadwal.get(key, "--:--")
 
-                small_waktu = self.render_small_clock_lines(waktu_val)
+                small_waktu = self.render_peaclock_time_small(waktu_val)
                 small_w = len(small_waktu[0])
                 pad_w = max(0, (cell_w - 2 - small_w) // 2)
 
@@ -559,7 +639,7 @@ class TerminalDashboard:
 
         # Render clock first (top-left area)
         time_str = now.strftime("%H:%M:%S")
-        clock_lines = self.render_clock_lines(time_str)
+        clock_lines = self.render_peaclock_time_main(time_str)
         clock_w = len(clock_lines[0])
         clock_pad = " " * 2
         for line in clock_lines:
