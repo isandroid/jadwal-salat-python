@@ -19,8 +19,17 @@ Diambil langsung dari kode sumber peaclock:
 Aturan gambar:
 
 - Setiap **digit** = grid **3 × 5 blok**.
-- Setiap **blok** = 2 karakter (`██`) dan **jarak antar blok = 2 karakter**
-  (dari `block 2 1` + `padding 2 1`), sehingga blok tampak persegi.
+- **Rasio blok : jarak = 2 : 1** pada kedua arah — hasil pengukuran piksel
+  screenshot resmi `res/cfg/digital.png`:
+
+  | Ukuran pada screenshot resmi | Nilai |
+  |---|---|
+  | lebar 1 dot | 40 px |
+  | jarak antar dot | 20 px |
+  | ➜ rasio | **2 : 1** |
+  | tinggi dot / jarak vertikal | 42 px / 21 px → **2 : 1** |
+
+- Blok harus tampak **persegi**, jadi `blok_w` karakter = `blok_h` baris.
 - **Titik dua** = 1 blok pada baris ke-2 dan ke-4.
 - Susunan kolom mengikuti `set_clock_digital()`:
 
@@ -35,8 +44,20 @@ Contoh hasil (`05:54:05`, x_block=2, x_space=2):
 ██  ██  ██      ██  ██  ██              ██  ██  ██      ██      ██              ██  ██  ██      ██  ██  ██
 ```
 
-Ukuran blok menyesuaikan terminal (`choose_geometry`), dengan rasio
-blok : jarak = 1 : 1 seperti contoh `cfg/digital` peaclock.
+### Ukuran menyesuaikan terminal (`choose_geometry`)
+
+Dipilih geometri terbesar yang muat, semuanya dengan rasio blok : jarak = 2 : 1:
+
+| Terminal | Blok | Jarak | Hasil |
+|---|---|---|---|
+| ≥ 160 kolom | 4 × 2 | 2 × 1 | **persis peaclock resmi** (160 × 14) |
+| 82 – 159 kolom | 2 × 1 | 1 × 1 | 80 × 9 |
+| < 82 kolom | 1 × 1 | 1 × 1 | 53 × 9 |
+
+Catatan: pada terminal < 160 kolom, jarak vertikal tidak bisa lebih kecil dari
+1 baris, sehingga rasio vertikal menjadi 1 : 1 (rasio horizontal tetap 2 : 1,
+sesuai screenshot resmi). Untuk tampilan paling persis, lebarkan terminal
+minimal 160 kolom.
 
 ---
 

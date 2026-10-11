@@ -107,30 +107,42 @@ def build_grid(hh: int, mm: int, ss: int, show_seconds: bool = True) -> List[Lis
     return grid
 
 
-# Kandidat geometri (blok_w, jarak_w, blok_h). Rasio blok:jarak = 1:1 seperti
-# cfg/digital peaclock (block 2 1 + padding 2 1) -> blok tampak persegi.
-CANDIDATES = [(6, 6, 3), (4, 4, 2), (2, 2, 1), (1, 1, 1), (1, 0, 1)]
+# Kandidat geometri: (blok_w, jarak_w, blok_h, jarak_h) dalam karakter/baris.
+# Rasio blok : jarak = 2 : 1 pada kedua arah, persis hasil pengukuran
+# screenshot resmi peaclock (dot 40 px, jarak 20 px). Blok tetap persegi
+# karena blok_w karakter = blok_h baris (sel karakter ~2x lebih tinggi).
+CANDIDATES = [
+    (8, 4, 4, 2),   # 320 x 28
+    (4, 2, 2, 1),   # 160 x 14  <- geometri persis peaclock resmi
+    (2, 1, 1, 1),   #  80 x  9  <- versi kecil, rasio horizontal tetap 2:1
+    (1, 1, 1, 1),   #  53 x  9  <- cadangan terminal sangat sempit
+]
 
 
 def choose_geometry(cols: int, rows: int, reserved_rows: int = 0,
                     ncol: int = NCOL_SEC):
-    """Pilih geometri terbesar yang muat di terminal (blok persegi + jarak persegi)."""
-    avail_w = max(1, cols - 2)
+    """Pilih geometri terbesar yang muat. Kembalikan (blok_w, blok_h, jarak_w, jarak_h)."""
+    avail_w = max(1, cols)
     avail_h = max(1, rows - reserved_rows)
-    for bw, gw, bh in CANDIDATES:
+    for bw, gw, bh, gh in CANDIDATES:
         width = ncol * bw + (ncol - 1) * gw
-        height = NROW * bh + (NROW - 1) * bh
+        height = NROW * bh + (NROW - 1) * gh
         if width <= avail_w and height <= avail_h:
-            return bw, bh, gw, bh
-    bw, gw, bh = CANDIDATES[-1]
-    return bw, bh, gw, bh
+            return bw, bh, gw, gh
+    bw, gw, bh, gh = CANDIDATES[-1]
+    return bw, bh, gw, gh
 
 
 def render_peaclock_digital(hh: int, mm: int, ss: int,
                             show_seconds: bool = True,
-                            x_block: int = 2, y_block: int = 1,
+                            x_block: int = 4, y_block: int = 2,
                             x_space: int = 2, y_space: int = 1) -> List[str]:
-    """Render jam peaclock digital -> daftar baris teks."""
+    """Render jam peaclock digital -> daftar baris teks.
+
+    x_block/y_block = ukuran satu dot (karakter x baris).
+    x_space/y_space = jarak antar dot (karakter x baris).
+    Rasio resmi peaclock: blok : jarak = 2 : 1.
+    """
     grid = build_grid(hh, mm, ss, show_seconds)
     on = BLOCK_CHAR * x_block
     off = " " * x_block
