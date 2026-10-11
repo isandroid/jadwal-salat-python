@@ -16,7 +16,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "dzuhur_iqamat": 20,
     "ashar_iqamat": 15,
     "maghrib_iqamat": 10,
-    "isya_iqamat": 15
+    "isya_iqamat": 15,
+    "padding_atas": 2,       # baris kosong di atas tampilan (minimum)
+    "padding_bawah": 2,      # baris kosong di bawah tampilan (minimum)
+    "padding_ratakan": True  # True = sisa ruang dibagi rata (tampilan di tengah)
 }
 
 def load_config() -> Dict[str, Any]:

@@ -6,5 +6,8 @@
   "dzuhur_iqamat": 30,
   "ashar_iqamat": 20,
   "maghrib_iqamat": 15,
-  "isya_iqamat": 15
+  "isya_iqamat": 15,
+  "padding_atas": 2,
+  "padding_bawah": 2,
+  "padding_ratakan": true
 }

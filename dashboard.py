@@ -556,9 +556,16 @@ class TerminalDashboard:
         out: List[str] = []
         chosen = None
         footer_gap = 1
-        top_pad, bottom_pad = TOP_PAD, BOTTOM_PAD
-        # Utamakan padding penuh; kurangi hanya bila grid tidak muat karenanya.
-        for tp, bp in ((TOP_PAD, BOTTOM_PAD), (1, 1), (0, 0)):
+        # Padding dari config.json (minimum); kurangi hanya bila grid tidak muat.
+        pad_top_max = max(0, int(self.config.get("padding_atas", TOP_PAD)))
+        pad_bot_max = max(0, int(self.config.get("padding_bawah", BOTTOM_PAD)))
+        pad_steps, seen = [], set()
+        for p in range(max(pad_top_max, pad_bot_max), -1, -1):
+            pair = (min(p, pad_top_max), min(p, pad_bot_max))
+            if pair not in seen:
+                seen.add(pair); pad_steps.append(pair)
+        top_pad, bottom_pad = pad_steps[0]
+        for tp, bp in pad_steps:
             for fh in (2, 1):                 # 2 = baris kosong + footer, 1 = footer saja
                 for hdr in header_candidates:
                     chosen = choose_grid(cols, rows, len(hdr) + tp, fh + bp)
@@ -607,9 +614,13 @@ class TerminalDashboard:
             top_pad = min(top_pad, slack // 2)
             bottom_pad = min(bottom_pad, slack - top_pad)
         extra = max(0, rows - body - top_pad - bottom_pad)
-        top_extra = extra // 2
+        if self.config.get("padding_ratakan", True):
+            top_extra = extra // 2
+            bot_extra = extra - top_extra
+        else:
+            top_extra = bot_extra = 0          # tepat sesuai setelan, sisa di bawah
         return ("\n" * (top_pad + top_extra) + "\n".join(out)
-                + "\n" * (bottom_pad + extra - top_extra))
+                + "\n" * (bottom_pad + bot_extra))
 
     def run(self):
         self.setup_terminal()

@@ -108,22 +108,31 @@ Rincian:
   (`subuh_iqamat`, `dzuhur_iqamat`, `ashar_iqamat`, `maghrib_iqamat`, `isya_iqamat`).
 - Bingkai memakai karakter garis: `┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`.
 
-### Padding atas / bawah
+### Padding atas / bawah (bisa diatur)
 
-Tampilan diberi ruang kosong **2 baris di atas dan 2 baris di bawah**
-(`TOP_PAD` / `BOTTOM_PAD` di `dashboard.py`). Sisa ruang vertikal dibagi rata
-sehingga blok tampilan tetap berada di tengah.
+Diatur dari `config.json`:
 
-Bila terminal terlalu pendek, padding otomatis diturunkan (2 → 1 → 0) **hanya
-agar grid 3 × 4 tetap muat** — grid lebih diutamakan daripada padding.
+```json
+"padding_atas": 2,        // minimum baris kosong di atas
+"padding_bawah": 2,       // minimum baris kosong di bawah
+"padding_ratakan": true   // true = sisa ruang dibagi rata (tampilan di tengah)
+```
 
-| Tinggi terminal | Padding atas/bawah | Grid |
-|---|---|---|
-| 36 baris | 2 / 2 | ✓ |
-| 40 baris | 4 / 4 (2 + sisa ruang) | ✓ |
-| 30 baris | 2 / 2 | ✓ |
-| 28 baris | 1 / 1 | ✓ (diturunkan demi grid) |
-| 26 baris | 0 / 0 | ✓ (diturunkan demi grid) |
+| Setelan | Hasil pada terminal 168×43 |
+|---|---|
+| `padding_ratakan: true` (default) | 5 baris atas, 6 baris bawah (tampilan di tengah) |
+| `padding_ratakan: false` | tepat **2 baris atas, 2 baris bawah**; sisa ruang dibiarkan di bawah |
+
+Padding juga diperhitungkan saat memilih ukuran grid, dan otomatis diturunkan
+(2 → 1 → 0) **hanya bila grid 3 × 4 tidak muat karenanya** — grid selalu
+diutamakan.
+
+**Ukuran terminal acuan (layar 1366×768, MATE, font Monospace 10): 168 kolom ×
+43 baris.** Di ukuran itu: grid memakai blok lebar 3 (digit besar), lebar total
+163 kolom dari 168, tinggi 43 baris — semuanya muat.
+
+Untuk memeriksa ukuran terminal yang sedang dipakai: jalankan `stty size`
+(menampilkan `baris kolom`).
 
 ### Gaya teks (bold / menonjol)
 
