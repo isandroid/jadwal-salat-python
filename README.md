@@ -108,6 +108,23 @@ Rincian:
   (`subuh_iqamat`, `dzuhur_iqamat`, `ashar_iqamat`, `maghrib_iqamat`, `isya_iqamat`).
 - Bingkai memakai karakter garis: `┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`.
 
+### Padding atas / bawah
+
+Tampilan diberi ruang kosong **2 baris di atas dan 2 baris di bawah**
+(`TOP_PAD` / `BOTTOM_PAD` di `dashboard.py`). Sisa ruang vertikal dibagi rata
+sehingga blok tampilan tetap berada di tengah.
+
+Bila terminal terlalu pendek, padding otomatis diturunkan (2 → 1 → 0) **hanya
+agar grid 3 × 4 tetap muat** — grid lebih diutamakan daripada padding.
+
+| Tinggi terminal | Padding atas/bawah | Grid |
+|---|---|---|
+| 36 baris | 2 / 2 | ✓ |
+| 40 baris | 4 / 4 (2 + sisa ruang) | ✓ |
+| 30 baris | 2 / 2 | ✓ |
+| 28 baris | 1 / 1 | ✓ (diturunkan demi grid) |
+| 26 baris | 0 / 0 | ✓ (diturunkan demi grid) |
+
 ### Gaya teks (bold / menonjol)
 
 Terminal tidak bisa mengubah ukuran font, jadi penekanan dilakukan dengan

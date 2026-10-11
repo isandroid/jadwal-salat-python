@@ -191,6 +191,8 @@ def _join_items(items, cols: int) -> str:
 GRID_COLS = 3
 GRID_ROWS = 4
 CELL_LINES = 6            # 1 baris label + 5 baris waktu
+TOP_PAD = 2               # padding kosong di atas seluruh tampilan (baris)
+BOTTOM_PAD = 2            # padding kosong di bawah seluruh tampilan (baris)
 
 BOX_V, BOX_H = "│", "─"
 BOX_TL, BOX_TM, BOX_TR = "┌", "┬", "┐"
@@ -554,12 +556,18 @@ class TerminalDashboard:
         out: List[str] = []
         chosen = None
         footer_gap = 1
-        for fh in (2, 1):                     # 2 = baris kosong + footer, 1 = footer saja
-            for hdr in header_candidates:
-                chosen = choose_grid(cols, rows, len(hdr), fh)
+        top_pad, bottom_pad = TOP_PAD, BOTTOM_PAD
+        # Utamakan padding penuh; kurangi hanya bila grid tidak muat karenanya.
+        for tp, bp in ((TOP_PAD, BOTTOM_PAD), (1, 1), (0, 0)):
+            for fh in (2, 1):                 # 2 = baris kosong + footer, 1 = footer saja
+                for hdr in header_candidates:
+                    chosen = choose_grid(cols, rows, len(hdr) + tp, fh + bp)
+                    if chosen:
+                        out.extend(hdr)
+                        footer_gap = fh - 1
+                        top_pad, bottom_pad = tp, bp
+                        break
                 if chosen:
-                    out.extend(hdr)
-                    footer_gap = fh - 1
                     break
             if chosen:
                 break
@@ -592,8 +600,16 @@ class TerminalDashboard:
             footer = "Tekan [q] untuk keluar"
         out.append(center_line(f"{DIM}{footer}{RESET}", cols))
 
-        top_margin = max(0, (rows - len(out)) // 4)
-        return "\n" * top_margin + "\n".join(out)
+        # padding atas/bawah; sisa ruang dibagi rata (mode daftar ringkas)
+        body = len(out)
+        if body + top_pad + bottom_pad > rows:              # jaga agar tidak melampaui
+            slack = max(0, rows - body)
+            top_pad = min(top_pad, slack // 2)
+            bottom_pad = min(bottom_pad, slack - top_pad)
+        extra = max(0, rows - body - top_pad - bottom_pad)
+        top_extra = extra // 2
+        return ("\n" * (top_pad + top_extra) + "\n".join(out)
+                + "\n" * (bottom_pad + extra - top_extra))
 
     def run(self):
         self.setup_terminal()
