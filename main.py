@@ -1,3 +1,4 @@
+import re
 import sys
 from datetime import date
 from api_client import JadwalSalatAPI
@@ -47,9 +48,35 @@ def print_help():
   python3 main.py --set-iqamat <salat> <menit> -> Atur jeda iqamat (subuh/dzuhur/ashar/maghrib/isya)
   python3 main.py --config          -> Tampilkan konfigurasi saat ini
   python3 main.py --data            -> Tampilkan isi penyimpanan lokal (SQLite)
+  python3 main.py --resolusi 1280x720 -> Dasbor mode ringkas (tanpa lokasi, hitung
+                                        mundur, & footer) — untuk layar kecil
   python3 main.py --warna           -> Lihat palet 256 warna + warna yang dipakai
   python3 main.py --warna <kunci> <nilai> -> Ubah satu warna (mis. --warna waktu_azan 1;38;5;196)
 """)
+
+def deteksi_resolusi():
+    """Perkirakan resolusi layar dari xrandr atau /sys/class/drm. None bila gagal."""
+    import glob
+    import subprocess
+    try:
+        keluaran = subprocess.run(["xrandr"], capture_output=True, text=True, timeout=4).stdout
+        cocok = re.search(r"(\d+)x(\d+)\s+[\d.]+\*", keluaran)
+        if cocok:
+            return int(cocok.group(1)), int(cocok.group(2))
+    except Exception:
+        pass
+    for berkas in sorted(glob.glob("/sys/class/drm/*/modes")):
+        try:
+            with open(berkas, encoding="utf-8") as f:
+                baris = f.readline().strip()
+            if "x" in baris:
+                lebar, tinggi = baris.split("x")[:2]
+                if lebar.isdigit() and tinggi.isdigit():
+                    return int(lebar), int(tinggi)
+        except Exception:
+            continue
+    return None
+
 
 def main():
     api = JadwalSalatAPI()
@@ -68,6 +95,24 @@ def main():
             dashboard.run()
             return
 
+        if arg == "--resolusi":
+            ukuran = None
+            if len(sys.argv) > 2:
+                cocok = re.match(r"^(\d+)\s*[xX*]\s*(\d+)$", sys.argv[2].strip())
+                if not cocok:
+                    print("[-] Format harus LEBARxTINGGI, mis. 1280x720")
+                    return
+                ukuran = (int(cocok.group(1)), int(cocok.group(2)))
+            else:
+                ukuran = deteksi_resolusi()
+                if ukuran:
+                    print(f"[i] Resolusi terdeteksi: {ukuran[0]}x{ukuran[1]}")
+                else:
+                    print("[i] Resolusi tidak terdeteksi; memakai ukuran terminal apa adanya.")
+            dashboard = TerminalDashboard(ringkas=True, resolusi=ukuran)
+            dashboard.run()
+            return
+
         if arg == "--warna":
             if len(sys.argv) > 3:                     # --warna <kunci> <nilai>
                 kunci, nilai = sys.argv[2], sys.argv[3]
@@ -75,7 +120,12 @@ def main():
                     print(f"[-] Kunci '{kunci}' tidak dikenal.")
                     print(f"    Pilihan: {', '.join(WARNA_DEFAULT)}")
                     return
-                save_config(warna={**warna_dipakai(cfg), kunci: nilai})
+                warna_baru = dict(cfg.get("warna") or {})   # hanya simpan yang diubah
+                if str(nilai).strip() in ("", "0"):
+                    warna_baru.pop(kunci, None)             # kosong = kembali ke bawaan
+                else:
+                    warna_baru[kunci] = nilai
+                save_config(warna=warna_baru)
                 print(f"[\u2713] Warna '{kunci}' disimpan di config.json: {nilai}")
                 print(f"    Contoh tampilannya: {chr(27)}[{nilai}m███ contoh warna{chr(27)}[0m")
                 return

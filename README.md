@@ -296,6 +296,38 @@ python3 main.py --cli      # jadwal teks — juga bekerja offline
 
 `jadwal_salat.db` tidak ikut di-commit (lihat `.gitignore`).
 
+## Mode ringkas untuk layar kecil (`--resolusi`)
+
+```bash
+python3 main.py --resolusi 1280x720    # mode ringkas
+python3 main.py --resolusi             # resolusi dideteksi otomatis (xrandr / DRM)
+```
+
+Mode ringkas **menyembunyikan tiga baris** agar grid dapat tempat maksimal:
+
+| Baris | Normal | Mode ringkas |
+|---|---|---|
+| 📍 Lokasi: ... | tampil | **hilang** |
+| ⏳ Menuju Waktu ... xx Jam yy Menit zz Detik | tampil | **hilang** |
+| Tekan [q] ... • Sumber Data: ... | tampil | **hilang** |
+| Judul | tampil | tampil |
+| 📅 Tanggal (Masehi \| Hijriah) | tampil | tampil |
+| Grid waktu salat | tampil | tampil (blok lebih besar) |
+
+Argumen resolusi dipakai untuk **memperkirakan ukuran terminal** bila ukuran
+sebenarnya tidak terbaca (mis. stdout bukan tty). Perkiraan memakai ukuran sel
+karakter dari `ukuran_sel` (bawaan `"8x18"` px); untuk 1280×720 → 160 × 40.
+Bila dijalankan di terminal biasa, ukuran sebenarnya tetap lebih diutamakan.
+
+Tiga baris itu juga bisa dimatikan permanen tanpa `--resolusi`, lewat
+`config.json`:
+
+```json
+"tampilkan_lokasi": false,
+"tampilkan_hitung_mundur": false,
+"tampilkan_footer": false
+```
+
 ## Menjalankan
 
 ```bash

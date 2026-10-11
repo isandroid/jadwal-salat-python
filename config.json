@@ -11,5 +11,9 @@
   "padding_bawah": 2,
   "padding_ratakan": true,
   "kolon_berkedip": false,
-  "warna": {}
+  "warna": {},
+  "tampilkan_lokasi": true,
+  "tampilkan_hitung_mundur": true,
+  "tampilkan_footer": true,
+  "ukuran_sel": "8x18"
 }

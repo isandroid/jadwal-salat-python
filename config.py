@@ -21,7 +21,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "padding_bawah": 2,      # baris kosong di bawah tampilan (minimum)
     "padding_ratakan": True, # True = sisa ruang dibagi rata (tampilan di tengah)
     "kolon_berkedip": False, # False = titik dua jam statis (detik tampil di bawah mm)
-    "warna": {}              # kosong = pakai warna bawaan; lihat WARNA_DEFAULT di dashboard.py
+    "warna": {},             # kosong = pakai warna bawaan; lihat WARNA_DEFAULT di dashboard.py
+    "tampilkan_lokasi": True,        # False = sembunyikan baris "📍 Lokasi: ..."
+    "tampilkan_hitung_mundur": True, # False = sembunyikan baris "Menuju Waktu ..."
+    "tampilkan_footer": True,        # False = sembunyikan baris petunjuk + sumber data
+    "ukuran_sel": "8x18"             # perkiraan ukuran 1 sel karakter (px) untuk --resolusi
 }
 
 def load_config() -> Dict[str, Any]:

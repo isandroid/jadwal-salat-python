@@ -9,6 +9,7 @@ Sumber acuan (kode sumber peaclock):
   cfg/digital               -> block 2 1, padding 2 1, margin 2 1, ratio 2 1
 """
 
+import os
 import sys
 import time
 import math
@@ -494,9 +495,15 @@ def hitung_hijri(dt: date) -> str:
 # DASBOR
 # ==========================================
 class TerminalDashboard:
-    def __init__(self):
+    def __init__(self, ringkas: bool = False, resolusi=None):
+        """ringkas=True  -> sembunyikan lokasi, hitung mundur, dan footer.
+        resolusi=(W,H) -> dipakai sebagai perkiraan ukuran terminal bila ukuran
+                          sebenarnya tidak bisa dibaca (mis. stdout bukan tty).
+        """
         self.api = JadwalSalatAPI()
         self.running = True
+        self.ringkas = ringkas
+        self.resolusi = resolusi
         self.config = load_config()
         self.jadwal_cache: Optional[Dict[str, Any]] = None
         self.last_fetch_date: Optional[date] = None
@@ -521,6 +528,32 @@ class TerminalDashboard:
         sys.stdout.write("\033[?1049l")
         sys.stdout.write(RESET)
         sys.stdout.flush()
+
+    def ukuran_terminal(self):
+        """Ukuran terminal (kolom, baris). Bila tidak bisa dibaca dan resolusi
+        layar diketahui, ukuran diperkirakan dari resolusi + ukuran sel."""
+        try:
+            if sys.stdout.isatty():
+                return shutil.get_terminal_size((120, 36))
+        except Exception:
+            pass
+        if self.resolusi:
+            sel = str(self.config.get("ukuran_sel", "8x18")).lower().split("x")
+            try:
+                lebar_sel, tinggi_sel = max(1, int(sel[0])), max(1, int(sel[1]))
+            except Exception:
+                lebar_sel, tinggi_sel = 8, 18
+            return os.terminal_size((self.resolusi[0] // lebar_sel,
+                                     self.resolusi[1] // tinggi_sel))
+        return shutil.get_terminal_size((120, 36))
+
+    def _saklar(self) -> Dict[str, bool]:
+        """Saklar tampilan: mode ringkas menang atas config.json."""
+        return {
+            "lokasi":       (not self.ringkas) and bool(self.config.get("tampilkan_lokasi", True)),
+            "hitung_mundur": (not self.ringkas) and bool(self.config.get("tampilkan_hitung_mundur", True)),
+            "footer":       (not self.ringkas) and bool(self.config.get("tampilkan_footer", True)),
+        }
 
     def _unduh_bulan(self, kota_id: str, tahun: int, bulan: int) -> bool:
         """Unduh satu bulan penuh dari API lalu simpan ke SQLite."""
@@ -652,7 +685,9 @@ class TerminalDashboard:
         return -1
 
     def build_frame(self) -> str:
-        cols, rows = shutil.get_terminal_size((120, 36))
+        uk = self.ukuran_terminal()
+        cols, rows = uk.columns, uk.lines
+        saklar = self._saklar()
         now = datetime.now()
         today = now.date()
 
@@ -696,14 +731,17 @@ class TerminalDashboard:
         lokasi_line = center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols)
         tanggal_line = center_line(f"{COLOR_SUBTITLE}{tanggal_str}{RESET}", cols)
         cd_line = center_line(f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}", cols)
-        header_candidates = [
-            [judul_line, lokasi_line, tanggal_line, cd_line, ""],
-            [judul_line, lokasi_line, tanggal_line, cd_line],
-            [judul_line, lokasi_line, tanggal_line],
-            [judul_line, lokasi_line],
-            [judul_line],
-            [],
-        ]
+        baris_header = [judul_line]
+        if saklar["lokasi"]:
+            baris_header.append(lokasi_line)
+        baris_header.append(tanggal_line)
+        if saklar["hitung_mundur"]:
+            baris_header.append(cd_line)
+        # menyusut dari belakang: hitung mundur -> tanggal -> lokasi (judul selalu tampil)
+        header_candidates = [baris_header + [""]]
+        for n in range(len(baris_header), 0, -1):
+            header_candidates.append(baris_header[:n])
+        header_candidates.append([])
         out: List[str] = []
         chosen = None
         footer_gap = 1
@@ -716,8 +754,9 @@ class TerminalDashboard:
             if pair not in seen:
                 seen.add(pair); pad_steps.append(pair)
         top_pad, bottom_pad = pad_steps[0]
+        footer_pilihan = (2, 1) if saklar["footer"] else (1, 0)
         for tp, bp in pad_steps:
-            for fh in (2, 1):                 # 2 = baris kosong + footer, 1 = footer saja
+            for fh in footer_pilihan:     # 2 = baris kosong + footer, 1 = footer saja
                 for hdr in header_candidates:
                     chosen = choose_grid(cols, rows, len(hdr) + tp, fh + bp)
                     if chosen:
@@ -749,6 +788,18 @@ class TerminalDashboard:
             out.append("")
 
         # ---- Footer (sebutkan sumber & status penyimpanan) ----
+        if not saklar["footer"]:
+            body = len(out)
+            top_pad, bottom_pad = TOP_PAD, BOTTOM_PAD
+            extra = max(0, rows - body - top_pad - bottom_pad)
+            if self.config.get("padding_ratakan", True):
+                top_extra = extra // 2
+                bot_extra = extra - top_extra
+            else:
+                top_extra = bot_extra = 0
+            return ("\n" * (top_pad + top_extra) + "\n".join(out)
+                    + "\n" * (bottom_pad + bot_extra))
+
         status = {
             "internet": "diperbarui dari internet",
             "cache": "dari penyimpanan lokal (SQLite)",
