@@ -199,8 +199,19 @@ ROW_LINES_FULL = [6, 6, 6, 6]
 ROW_LINES_COMPACT = [6, 5, 6, 5]
 
 
+# Garis pemisah yang dihilangkan karena selnya menyatu.
+#   indeks = nomor garis pemisah (setelah baris ke-N), nilai = kolom yang menyatu
+MERGED_SEPS = {0: {0, 1, 2}, 2: {0, 1, 2}}
+
+
+def _seps_skipped(merged=None) -> int:
+    m = MERGED_SEPS if merged is None else merged
+    return sum(1 for r in range(GRID_ROWS - 1)
+               if len(m.get(r, set())) >= GRID_COLS)
+
+
 def grid_height(row_lines) -> int:
-    return sum(row_lines) + (GRID_ROWS + 1)          # + garis bingkai
+    return sum(row_lines) + (GRID_ROWS + 1) - _seps_skipped()
 
 
 def choose_grid(cols: int, rows: int, header_h: int, footer_h: int):
@@ -288,18 +299,35 @@ def render_grid(cells, cols: int, inner_w: int, pad: int = 2,
     def hline(left, mid, right):
         return left + (BOX_H * cell_w + mid) * (GRID_COLS - 1) + BOX_H * cell_w + right
 
+    def sep_line(merged_cols):
+        """Garis pemisah; kolom yang menyatu dibiarkan kosong."""
+        def joint(lm, rm):
+            if lm and rm:
+                return BOX_V          # keduanya menyatu -> hanya garis tegak
+            if lm:
+                return BOX_ML         # garis hanya ke kanan
+            if rm:
+                return BOX_MR         # garis hanya ke kiri
+            return BOX_MM
+        last = GRID_COLS - 1
+        line = BOX_V if 0 in merged_cols else BOX_ML
+        for c in range(GRID_COLS):
+            line += " " * cell_w if c in merged_cols else BOX_H * cell_w
+            if c < last:
+                line += joint(c in merged_cols, (c + 1) in merged_cols)
+        line += BOX_V if last in merged_cols else BOX_MR
+        return line
+
     out: List[str] = []
     out.append(hline(BOX_TL, BOX_TM, BOX_TR))
     for r in range(GRID_ROWS):
         for li in range(row_lines[r]):
             out.append(content_line(r, li))
         if r < GRID_ROWS - 1:
-            if r == 0:      # kolom 1 baris 1-2 menyatu (jam) -> tanpa garis mendatar
-                out.append(BOX_V + " " * cell_w + BOX_ML
-                           + (BOX_H * cell_w + BOX_MM) * (GRID_COLS - 2)
-                           + BOX_H * cell_w + BOX_MR)
-            else:
-                out.append(hline(BOX_ML, BOX_MM, BOX_MR))
+            merged_cols = MERGED_SEPS.get(r, set())
+            if len(merged_cols) >= GRID_COLS:
+                continue              # seluruh kolom menyatu -> tanpa garis pemisah
+            out.append(sep_line(merged_cols))
     out.append(hline(BOX_BL, BOX_BM, BOX_BR))
     return out
 
@@ -502,10 +530,15 @@ class TerminalDashboard:
         ]
         out: List[str] = []
         chosen = None
-        for hdr in header_candidates:
-            chosen = choose_grid(cols, rows, len(hdr), 2)
+        footer_gap = 1
+        for fh in (2, 1):                     # 2 = baris kosong + footer, 1 = footer saja
+            for hdr in header_candidates:
+                chosen = choose_grid(cols, rows, len(hdr), fh)
+                if chosen:
+                    out.extend(hdr)
+                    footer_gap = fh - 1
+                    break
             if chosen:
-                out.extend(hdr)
                 break
         if chosen:
             grid_bw, inner_w, grid_pad, row_lines = chosen
@@ -524,7 +557,8 @@ class TerminalDashboard:
             out.extend(build_prayer_compact(self.prayer_iqamat_entries(), cols,
                                             highlight=self.next_prayer_index(now)))
             out.append(center_line(f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}", cols))
-        out.append("")
+        if footer_gap:
+            out.append("")
 
         # ---- Footer ----
         footer = "Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI"

@@ -66,44 +66,52 @@ minimal 160 kolom.
 Semua waktu memakai **satu font yang sama**: peaclock `cfg/default`
 (tabel `_symbol` 3 × 5, `padding 0 0` → blok rapat membentuk karakter padat).
 
+Tiap waktu salat menempati **satu kotak menyatu**: waktu azan di atas, waktu
+iqamat di bawah — **tanpa garis pemisah** di antaranya. Sel jam juga menyatu
+(kolom 1, baris 1–2).
+
 ```
 ┌──────────────────────────┬──────────────────────────┬──────────────────────────┐
 │           JAM            │          SUBUH           │          DZUHUR          │
-│          14:32           │          04:18           │          11:43           │
-│                          ├──────────────────────────┼──────────────────────────┤
+│          14:44           │          04:18           │          11:43           │
 │   Minggu, 11 Okt 2026    │          IQAMAT          │          IQAMAT          │
 │   28 Rabi'ul Akhir 1448H │          04:33           │          12:13           │
-│      ⏳ MENUJU ASHAR      │                          │                          │
-│   00 Jam 03 Menit 27 Dtk │                          │                          │
+│      ⏳ MENUJU MAGHRIB    │                          │                          │
+│   03 Jam 04 Menit 22 Dtk │                          │                          │
 ├──────────────────────────┼──────────────────────────┼──────────────────────────┤
 │          ASHAR           │         MAGHRIB          │          ISYA'           │
 │          14:44           │          17:49           │          18:58           │
-├──────────────────────────┼──────────────────────────┼──────────────────────────┤
 │          IQAMAT          │          IQAMAT          │          IQAMAT          │
 │          15:04           │          18:04           │          19:13           │
 └──────────────────────────┴──────────────────────────┴──────────────────────────┘
 ```
 
-- **Baris 1** : jam berdetak + azan Subuh + azan Dzuhur.
-- **Baris 2** : info jam + iqamat Subuh + iqamat Dzuhur.
-- **Baris 3** : azan Ashar + azan Maghrib + azan Isya'.
-- **Baris 4** : iqamat Ashar + iqamat Maghrib + iqamat Isya'.
+Baris (grid) yang tersusun:
+
+| Baris | Kolom 1 | Kolom 2 | Kolom 3 |
+|---|---|---|---|
+| 1 | jam berdetak | azan Subuh | azan Dzuhur |
+| 2 | info jam | iqamat Subuh | iqamat Dzuhur |
+| 3 | azan Ashar | azan Maghrib | azan Isya' |
+| 4 | iqamat Ashar | iqamat Maghrib | iqamat Isya' |
+
+Garis pemisah mendatar hanya ada **satu**, yaitu antara baris 2 dan 3
+(pemisah dua kelompok). Sel yang menyatu digambar tanpa garis, dan tingginya
+bertambah otomatis.
 
 Rincian:
 
-- Sel **JAM** menempati kolom 1 baris 1–2 (menyatu, tanpa garis pemisah di dalamnya)
-  berisi jam `HH:MM` **tanpa detik**; yang berdetak hanya **titik dua**
+- Sel **JAM**: jam `HH:MM` **tanpa detik** — yang berdetak hanya **titik dua**
   (menyala saat detik genap, padam saat detik ganjil), lalu tanggal Masehi,
   Hijriah, dan hitung mundur ke waktu salat berikutnya.
 - **Iqamat** = waktu azan + jeda menit dari `config.json`
   (`subuh_iqamat`, `dzuhur_iqamat`, `ashar_iqamat`, `maghrib_iqamat`, `isya_iqamat`).
-- Semua sel berukuran **sama**; bingkai kotak antar waktu salat memakai
-  karakter garis (`┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`).
+- Bingkai memakai karakter garis: `┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`.
 
 ### Penyesuaian otomatis
 
-Ukuran blok, padding sel, dan tinggi baris dipilih agar selalu muat
-(lebar **dan** tinggi):
+Ukuran blok, padding sel, tinggi baris, header, dan jarak footer dipilih agar
+selalu muat (lebar **dan** tinggi):
 
 | Kondisi terminal | Yang dilakukan |
 |---|---|
@@ -113,6 +121,7 @@ Ukuran blok, padding sel, dan tinggi baris dipilih agar selalu muat
 | lebar < 109 | blok 1, padding 2 → 1 → 0 |
 | tinggi pas-pasan | baris iqamat kehilangan label "IQAMAT" (hemat 2 baris) |
 | makin pendek | header menyusut: judul+lokasi+kosong → judul+lokasi → judul |
+| masih kurang | baris kosong sebelum footer dihilangkan |
 | terlalu kecil | beralih ke daftar teks ringkas (`SUBUH 04:18/04:33 ...`) |
 
 ### Asal-usul font
