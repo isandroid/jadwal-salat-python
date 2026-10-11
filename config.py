@@ -19,7 +19,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "isya_iqamat": 15,
     "padding_atas": 2,       # baris kosong di atas tampilan (minimum)
     "padding_bawah": 2,      # baris kosong di bawah tampilan (minimum)
-    "padding_ratakan": True  # True = sisa ruang dibagi rata (tampilan di tengah)
+    "padding_ratakan": True, # True = sisa ruang dibagi rata (tampilan di tengah)
+    "kolon_berkedip": False  # False = titik dua jam statis (detik tampil di bawah mm)
 }
 
 def load_config() -> Dict[str, Any]:

@@ -664,7 +664,12 @@ class TerminalDashboard:
                 break
         if chosen:
             grid_bw, inner_w, grid_pad, row_lines = chosen
-            colon_on = (now.second % 2 == 0)        # hanya kolon yang berdetak
+            # Detik sudah tampil di bawah `mm`, jadi kolon dibuat STATIS.
+            # Setel "kolon_berkedip": true di config.json bila ingin berkedip lagi.
+            if self.config.get("kolon_berkedip", False):
+                colon_on = (now.second % 2 == 0)
+            else:
+                colon_on = True
             cells = build_cells(now, self.prayer_iqamat_entries(), grid_bw,
                                 colon_on, row_lines,
                                 highlight=self.next_prayer_index(now))

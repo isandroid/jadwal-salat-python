@@ -105,10 +105,10 @@ bertambah otomatis.
 Rincian:
 
 - **Judul, lokasi, tanggal, dan hitung mundur** berada di header (di atas grid).
-- Sel **JAM**: jam `HH:MM` tanpa detik — yang berdetak hanya **titik dua**
-  (menyala saat detik genap, padam saat detik ganjil). **Detik** ditampilkan
-  sebagai dua digit di baris kedua sel, **tepat di bawah bagian `mm`**
-  (kolom 10–16 dari tata letak 17 kolom).
+- Sel **JAM**: jam `HH:MM` tanpa detik, dengan **titik dua statis** (tidak
+  berkedip) — karena detiknya sudah tampil. **Detik** ditampilkan sebagai dua
+  digit di baris kedua sel, **tepat di bawah bagian `mm`** (kolom 10–16 dari
+  tata letak 17 kolom).
 - **Iqamat** = waktu azan + jeda menit dari `config.json`
   (`subuh_iqamat`, `dzuhur_iqamat`, `ashar_iqamat`, `maghrib_iqamat`, `isya_iqamat`).
 - Bingkai memakai karakter garis: `┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`.
@@ -162,6 +162,22 @@ Catatan: ANSI tidak menyediakan pengubah ukuran font. Bila Pak Isa ingin nama
 waktu salat benar-benar *lebih tinggi* (bukan sekadar bold), itu harus digambar
 sebagai seni blok — konsekuensinya tiap sel bertambah tinggi sehingga layout
 3 × 4 tidak lagi muat di terminal 36 baris.
+
+### Titik dua statis / berkedip
+
+Karena detik sudah tampil di bawah `mm`, **titik dua jam tidak lagi berkedip**
+(statis menyala terus). Diatur lewat `config.json`:
+
+```json
+"kolon_berkedip": false   // false = statis (default), true = berkedip tiap detik
+```
+
+Terverifikasi pada `block_w = 3` (kolom karakter 24–26, baris glyph ke-1 dan ke-3):
+
+| Setelan | detik 10 | detik 11 | detik 12 | detik 13 |
+|---|---|---|---|---|
+| `false` (statis) | menyala | menyala | menyala | menyala |
+| `true` (berkedip) | menyala | padam | menyala | padam |
 
 ### Detik di bawah `mm`
 

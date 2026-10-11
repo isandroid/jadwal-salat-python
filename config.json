@@ -9,5 +9,6 @@
   "isya_iqamat": 15,
   "padding_atas": 2,
   "padding_bawah": 2,
-  "padding_ratakan": true
+  "padding_ratakan": true,
+  "kolon_berkedip": false
 }
