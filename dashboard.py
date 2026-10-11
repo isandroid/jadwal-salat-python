@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """
 Dasbor Terminal Jadwal Salat & Jam Digital Masjid
-Dioptimalkan untuk resolusi layar 1366x768 (atau terminal modern).
-Layout 3x2 (peaclock style):
-  Baris 1: [JAM BERDETAK] [SUBUH] [DZUHUR]
-  Baris 2: [ASHAR] [MAGHRIB] [ISYA]
+Peaclock-style Digital Clock (view digital, block 2x1, padding 2x1, ratio 2:1)
 """
 
 import os
@@ -52,20 +49,19 @@ RESET = "\033[0m"
 BOLD = "\033[1m"
 DIM = "\033[2m"
 
-# Teks
-COLOR_TITLE = "\033[1;38;5;220m"       # Emas menyala
-COLOR_SUBTITLE = "\033[38;5;153m"      # Biru langit lembut
-COLOR_BORDER = "\033[38;5;34m"         # Hijau Masjid
-COLOR_BORDER_DIM = "\033[38;5;240m"     # Abu-abu border
-COLOR_CLOCK = "\033[1;38;5;48m"        # Hijau digital neon
-COLOR_CLOCK_SEC = "\033[38;5;120m"     # Hijau muda
-COLOR_COUNTDOWN = "\033[1;38;5;227m"    # Kuning menyala
-COLOR_ACTIVE_CARD = "\033[1;38;5;226m"  # Kuning / Emas aktif
-BG_ACTIVE_CARD = "\033[48;5;22m"        # Background hijau tua
-COLOR_PASSED_CARD = "\033[38;5;244m"    # Abu-abu lewat
-COLOR_NORMAL_CARD = "\033[38;5;159m"    # Cyan lembut
-COLOR_IQAMAT_LABEL = "\033[38;5;214m"   # Oranye/Amber Iqamat
-COLOR_IQAMAT_TIME = "\033[1;38;5;220m"  # Emas terang waktu Iqamat
+COLOR_TITLE = "\033[1;38;5;220m"
+COLOR_SUBTITLE = "\033[38;5;153m"
+COLOR_BORDER = "\033[38;5;34m"
+COLOR_BORDER_DIM = "\033[38;5;240m"
+COLOR_CLOCK = "\033[1;38;5;48m"
+COLOR_CLOCK_SEC = "\033[38;5;120m"
+COLOR_COUNTDOWN = "\033[1;38;5;227m"
+COLOR_ACTIVE_CARD = "\033[1;38;5;226m"
+BG_ACTIVE_CARD = "\033[48;5;22m"
+COLOR_PASSED_CARD = "\033[38;5;244m"
+COLOR_NORMAL_CARD = "\033[38;5;159m"
+COLOR_IQAMAT_LABEL = "\033[38;5;214m"
+COLOR_IQAMAT_TIME = "\033[1;38;5;220m"
 
 IQAMAT_KEYS = {
     "subuh": "subuh_iqamat",
@@ -76,224 +72,104 @@ IQAMAT_KEYS = {
 }
 
 
-def hitung_waktu_iqamat(waktu_azan_str: str, jeda_menit: int) -> str:
-    """Menghitung waktu iqamat = waktu azan + jeda menit."""
-    if not waktu_azan_str or waktu_azan_str == "--:--":
-        return "--:--"
-    try:
-        jam, menit = map(int, waktu_azan_str.split(":"))
-        total_menit = (jam * 60 + menit + int(jeda_menit)) % 1440
-        return f"{total_menit // 60:02d}:{total_menit % 60:02d}"
-    except Exception:
-        return "--:--"
-
-
 # ==========================================
-# FONT DIGITAL 5-BARIS BESAR (HH:MM:SS) - untuk jam utama
+# PEACLOCK EXACT - Digital View (block 2x1, padding 2x1, ratio 2:1)
+# Exact replica of peaclock's `view digital` with `block 2 1`, `padding 2 1`, `ratio 2 1`
+# Each segment = 2x1 block (██ = on, '  ' = off)
+# Digit: 7 rows x 6 chars (3 blocks x 2 chars per block)
 # ==========================================
-DIGITS_5 = {
-    '0': [
-        ' ████ ',
-        ' █  █ ',
-        ' █  █ ',
-        ' █  █ ',
-        ' ████ '
-    ],
-    '1': [
-        '   ██ ',
-        '  ███ ',
-        '   ██ ',
-        '   ██ ',
-        '  ████'
-    ],
-    '2': [
-        ' ████ ',
-        '    █ ',
-        ' ████ ',
-        ' █    ',
-        ' ████ '
-    ],
-    '3': [
-        ' ████ ',
-        '    █ ',
-        ' ████ ',
-        '    █ ',
-        ' ████ '
-    ],
-    '4': [
-        ' █  █ ',
-        ' █  █ ',
-        ' ████ ',
-        '    █ ',
-        '    █ '
-    ],
-    '5': [
-        ' ████ ',
-        ' █    ',
-        ' ████ ',
-        '    █ ',
-        ' ████ '
-    ],
-    '6': [
-        ' ████ ',
-        ' █    ',
-        ' ████ ',
-        ' █  █ ',
-        ' ████ '
-    ],
-    '7': [
-        ' ████ ',
-        '    █ ',
-        '   █  ',
-        '  █   ',
-        '  █   '
-    ],
-    '8': [
-        ' ████ ',
-        ' █  █ ',
-        ' ████ ',
-        ' █  █ ',
-        ' ████ '
-    ],
-    '9': [
-        ' ████ ',
-        ' █  █ ',
-        ' ████ ',
-        '    █ ',
-        ' ████ '
-    ],
-    ':': [
-        '    ',
-        ' ██ ',
-        '    ',
-        ' ██ ',
-        '    '
-    ],
-    ' ': [
-        '    ',
-        '    ',
-        '    ',
-        '    ',
-        '    '
-    ]
-}
-
-
-# ==========================================
-# FONT DIGITAL PEACLOCK STYLE (7-SEGMENT)
-# Based on peaclock's digital view (block 2x1, 7-segment)
-# Main clock: 5 rows × 12 cols per digit (block 2x1, 7-seg)
-# Small clock: 4 rows × 10 cols per digit
-# ==========================================
-
-# 7-segment patterns for peaclock digital style
-# Each segment is a 2×1 block (██ for on, '  ' for off)
-# Layout:  aaaa  (top)
-#        f    b (upper)
-#        gggg  (middle)
-#        e    c (lower)
-#        dddd  (bottom)
 
 SEG_ON = '██'
 SEG_OFF = '  '
 
-# 7-segment patterns: a, b, c, d, e, f, g
 SEGMENTS = {
-    '0': 'abcefd',  # a,b,c,d,e,f (no g)
-    '1': 'bc',       # b,c only
-    '2': 'abged',   # a,b,g,e,d
-    '3': 'abgcd',   # a,b,c,d,g
-    '4': 'fgbc',    # f,g,b,c
-    '5': 'afgcd',   # a,f,g,c,d
-    '6': 'afgcde',  # a,f,g,c,d,e
-    '7': 'abc',     # a,b,c
-    '8': 'abcdefg', # all
-    '9': 'abfgcd',  # a,b,f,g,c,d
+    '0': 'abcefd',  '1': 'bc',      '2': 'abged',
+    '3': 'abgcd',   '4': 'fgbc',    '5': 'afgcd',
+    '6': 'afgcde',  '7': 'abc',     '8': 'abcdefg',
+    '9': 'abfgcd',
 }
 
-def build_peaclock_digit_5rows(segs):
-    """Build 5-row peaclock digital digit (block 2x1 style)"""
-    # Each row is 12 chars wide (6 segments × 2 chars)
+def _render_peaclock_time_main(time_str: str) -> list[str]:
+    """Exact peaclock digital style: 7 rows x (6 chars per digit + 2 spacing)."""
+    rows = [''] * 7
+    for ch in time_str:
+        if ch == ':':
+            glyph = ['   ', '   ', ' ● ', '   ', ' ● ', '   ', '   ']
+        elif ch == ' ':
+            glyph = ['   '] * 7
+        else:
+            segs = SEGMENTS.get(ch, '')
+            glyph = [
+                ('██' if 'a' in segs else '  ') * 3,
+                ('██' if 'f' in segs else '  ') + '  ' + ('██' if 'b' in segs else '  '),
+                ('██' if 'f' in segs else '  ') + '  ' + ('██' if 'b' in segs else '  '),
+                ('██' if 'g' in segs else '  ') * 3,
+                ('██' if 'e' in segs else '  ') + '  ' + ('██' if 'c' in segs else '  '),
+                ('██' if 'e' in segs else '  ') + '  ' + ('██' if 'c' in segs else '  '),
+                ('██' if 'd' in segs else '  ') * 3,
+            ]
+        for i in range(7):
+            rows[i] += glyph[i] + '  '
+    return rows
+
+def render_peaclock_time_main(time_str: str) -> list[str]:
+    """Exact peaclock digital main clock: 7 rows."""
+    rows = [''] * 7
+    for ch in time_str:
+        if ch == ':':
+            glyph = ['   ', '   ', ' ● ', '   ', ' ● ', '   ', '   ']
+        elif ch == ' ':
+            glyph = ['   '] * 7
+        else:
+            segs = SEGMENTS.get(ch, '')
+            glyph = [
+                ('██' if 'a' in segs else '  ') * 3,
+                ('██' if 'f' in segs else '  ') + '  ' + ('██' if 'b' in segs else '  '),
+                ('██' if 'f' in segs else '  ') + '  ' + ('██' if 'b' in segs else '  '),
+                ('██' if 'g' in segs else '  ') * 3,
+                ('██' if 'e' in segs else '  ') + '  ' + ('██' if 'c' in segs else '  '),
+                ('██' if 'e' in segs else '  ') + '  ' + ('██' if 'c' in segs else '  '),
+                ('██' if 'd' in segs else '  ') * 3,
+            ]
+        for i in range(7):
+            rows[i] += glyph[i] + '  '
+    return rows
+
+def render_peaclock_time_small(time_str: str) -> list[str]:
     rows = [''] * 5
-    
-    # Row 0: segment a (top horizontal) - 6 blocks wide
-    row0 = ''
-    for _ in range(6):
-        row0 += SEG_ON if 'a' in segs else SEG_OFF
-    rows[0] = row0
-    
-    # Rows 1-2: segments f (left) and b (right) - 2 rows for upper verticals
-    row1 = row2 = ''
-    for _ in range(2):
-        row1 += SEG_ON if 'f' in segs else SEG_OFF
-    for _ in range(4):
-        row1 += SEG_OFF  # middle gap
-    for _ in range(2):
-        row1 += SEG_ON if 'b' in segs else SEG_OFF
-    rows[1] = row1
-    
-    for _ in range(2):
-        row2 += SEG_ON if 'f' in segs else SEG_OFF
-    for _ in range(4):
-        row2 += SEG_OFF
-    for _ in range(2):
-        row2 += SEG_ON if 'b' in segs else SEG_OFF
-    rows[2] = row2
-    
-    # Row 3: segment g (middle horizontal)
-    row3 = ''
-    for _ in range(6):
-        row3 += SEG_ON if 'g' in segs else SEG_OFF
-    rows[3] = row3
-    
-    # Rows 4: segments e (left) and c (right) - lower verticals + d (bottom)
-    row4 = ''
-    for _ in range(2):
-        row4 += SEG_ON if 'e' in segs else SEG_OFF
-    for _ in range(4):
-        row4 += SEG_OFF
-    for _ in range(2):
-        row4 += SEG_ON if 'c' in segs else SEG_OFF
-    rows[4] = row4
-    
-    # Actually peaclock uses 5 rows for digital view with block 2x1
-    # Let me reconsider - peaclock digital view has different rendering
-    # Let me use a simpler but accurate approach
-    pass
+    for ch in time_str:
+        if ch == ':':
+            glyph = ['  ', '  ', ' ● ', '  ', ' ● ']
+        elif ch == ' ':
+            glyph = ['  '] * 5
+        else:
+            segs = SEGMENTS.get(ch, '')
+            on = lambda s: '██' if s in segs else '  '
+            glyph = [on('a')*2, on('f')+on('b'), on('g')*2, on('e')+on('c'), on('d')*2]
+        for i in range(5):
+            rows[i] += glyph[i] + '  '
+    return rows
 
 
-NAMA_HARI = {
-    0: "Senin", 1: "Selasa", 2: "Rabu", 3: "Kamis",
-    4: "Jumat", 5: "Sabtu", 6: "Minggu"
+SEGMENTS = {
+    '0': 'abcefd',  '1': 'bc',      '2': 'abged',
+    '3': 'abgcd',   '4': 'fgbc',    '5': 'afgcd',
+    '6': 'afgcde',  '7': 'abc',     '8': 'abcdefg',
+    '9': 'abfgcd',
 }
 
-NAMA_BULAN = {
-    1: "Januari", 2: "Februari", 3: "Maret", 4: "April",
-    5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus",
-    9: "September", 10: "Oktober", 11: "November", 12: "Desember"
-}
 
-BULAN_HIJRI = [
-    '', 'Muharram', 'Safar', "Rabi'ul Awwal", "Rabi'ul Akhir",
-    'Jumadil Awwal', 'Jumadil Akhir', 'Rajab', "Sya'ban",
-    'Ramadhan', 'Syawwal', "Dzulqa'dah", "Dzulhijjah"
-]
+NAMA_HARI = {0: "Senin", 1: "Selasa", 2: "Rabu", 3: "Kamis", 4: "Jumat", 5: "Sabtu", 6: "Minggu"}
+NAMA_BULAN = {1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni", 7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"}
+BULAN_HIJRI = ['', 'Muharram', 'Safar', "Rabi'ul Awwal", "Rabi'ul Akhir", 'Jumadil Awwal', 'Jumadil Akhir', 'Rajab', "Sya'ban", 'Ramadhan', 'Syawwal', "Dzulqa'dah", "Dzulhijjah"]
 
 
 def hitung_hijri(dt: date) -> str:
-    """Mengonversi tanggal Masehi ke kalender Hijriah (Algoritma Tabular Islam)."""
-    y = dt.year
-    m = dt.month
-    d = dt.day
-
-    if m < 3:
-        y -= 1
-        m += 12
-
+    y, m, d = dt.year, dt.month, dt.day
+    if m < 3: y -= 1; m += 12
     a = math.floor(y / 100)
     b = 2 - a + math.floor(a / 4)
     jd = math.floor(365.25 * (y + 4716)) + math.floor(30.6001 * (m + 1)) + d + b - 1524.5
-
     jd_epoch = 1948439.5
     l = jd - jd_epoch + 10632
     n = math.floor((l - 1) / 10631)
@@ -303,9 +179,81 @@ def hitung_hijri(dt: date) -> str:
     h_month = math.floor((24 * l) / 709)
     h_day = l - math.floor((709 * h_month) / 24)
     h_year = 30 * n + j - 30
-
     bulan_str = BULAN_HIJRI[h_month] if 1 <= h_month <= 12 else ''
     return f"{int(h_day)} {bulan_str} {int(h_year)} H"
+
+
+def hitung_waktu_iqamat(waktu_azan_str: str, jeda_menit: int) -> str:
+    if not waktu_azan_str or waktu_azan_str == "--:--": return "--:--"
+    try:
+        jam, menit = map(int, waktu_azan_str.split(":"))
+        total_menit = (jam * 60 + menit + int(jeda_menit)) % 1440
+        return f"{total_menit // 60:02d}:{total_menit % 60:02d}"
+    except Exception: return "--:--"
+
+
+def visible_width(s: str) -> int:
+    clean = re.sub(r'\033\[[0-9;]*m', '', s)
+    w = 0
+    for ch in clean:
+        ea = unicodedata.east_asian_width(ch)
+        if ea in ('W', 'F') or ord(ch) >= 0x1f000: w += 2
+        else: w += 1
+    return w
+
+
+def center_line(text_with_ansi: str, total_cols: int) -> str:
+    w = visible_width(text_with_ansi)
+    pad = max(0, (total_cols - w) // 2)
+    return " " * pad + text_with_ansi
+
+
+# ==========================================
+# COLOR PALETTE
+# ==========================================
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+COLOR_TITLE = "\033[1;38;5;220m"
+COLOR_SUBTITLE = "\033[38;5;153m"
+COLOR_BORDER = "\033[38;5;34m"
+COLOR_BORDER_DIM = "\033[38;5;240m"
+COLOR_CLOCK = "\033[1;38;5;48m"
+COLOR_CLOCK_SEC = "\033[38;5;120m"
+COLOR_COUNTDOWN = "\033[1;38;5;227m"
+COLOR_ACTIVE_CARD = "\033[1;38;5;226m"
+BG_ACTIVE_CARD = "\033[48;5;22m"
+COLOR_PASSED_CARD = "\033[38;5;244m"
+COLOR_NORMAL_CARD = "\033[38;5;159m"
+COLOR_IQAMAT_LABEL = "\033[38;5;214m"
+COLOR_IQAMAT_TIME = "\033[1;38;5;220m"
+
+IQAMAT_KEYS = {"subuh": "subuh_iqamat", "dzuhur": "dzuhur_iqamat", "ashar": "ashar_iqamat", "maghrib": "maghrib_iqamat", "isya": "isya_iqamat"}
+
+
+def hitung_waktu_iqamat(waktu_azan_str: str, jeda_menit: int) -> str:
+    if not waktu_azan_str or waktu_azan_str == "--:--": return "--:--"
+    try:
+        jam, menit = map(int, waktu_azan_str.split(":"))
+        total_menit = (jam * 60 + menit + int(jeda_menit)) % 1440
+        return f"{total_menit // 60:02d}:{total_menit % 60:02d}"
+    except Exception: return "--:--"
+
+
+def visible_width(s: str) -> int:
+    clean = re.sub(r'\033\[[0-9;]*m', '', s)
+    w = 0
+    for ch in clean:
+        ea = unicodedata.east_asian_width(ch)
+        if ea in ('W', 'F') or ord(ch) >= 0x1f000: w += 2
+        else: w += 1
+    return w
+
+
+def center_line(text_with_ansi: str, total_cols: int) -> str:
+    w = visible_width(text_with_ansi)
+    pad = max(0, (total_cols - w) // 2)
+    return " " * pad + text_with_ansi
 
 
 class TerminalDashboard:
@@ -316,178 +264,53 @@ class TerminalDashboard:
         self.jadwal_cache: Optional[Dict[str, Any]] = None
         self.last_fetch_date: Optional[date] = None
         self.old_terminal_settings = None
-        # Kartu yang tersembunyi (Subuh, Terbit, Dhuha) — tampilkan sebagai ruang kosong
-        self.HIDDEN_KEYS = {"imsak", "terbit", "dhuha"}
 
     def setup_terminal(self):
-        """Menyiapkan terminal: alternate screen, sembunyikan kursor, dan non-blocking raw input."""
-        sys.stdout.write("\033[?1049h")  # Masuk alternate screen buffer
-        sys.stdout.write("\033[?25l")    # Sembunyikan kursor
+        sys.stdout.write("\033[?1049h")
+        sys.stdout.write("\033[?25l")
         sys.stdout.flush()
-
         if sys.stdin.isatty():
             self.old_terminal_settings = termios.tcgetattr(sys.stdin)
             tty.setcbreak(sys.stdin.fileno())
 
     def restore_terminal(self):
-        """Mengembalikan pengaturan terminal seperti semula."""
         if self.old_terminal_settings and sys.stdin.isatty():
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_terminal_settings)
-        sys.stdout.write("\033[?25h")    # Tampilkan kembali kursor
-        sys.stdout.write("\033[?1049l")  # Keluar alternate screen buffer
+        sys.stdout.write("\033[?25h")
+        sys.stdout.write("\033[?1049l")
         sys.stdout.write(RESET)
         sys.stdout.flush()
 
     def fetch_jadwal(self, force: bool = False):
-        """Mengambil data jadwal salat dari API sesuai tanggal hari ini."""
         today = date.today()
-        if not force and self.jadwal_cache and self.last_fetch_date == today:
-            return
-
+        if not force and self.jadwal_cache and self.last_fetch_date == today: return
         kota_id = self.config.get("lokasi_id", "1204")
         try:
             res = self.api.get_jadwal_harian(kota_id, today)
             if res and "jadwal" in res:
                 self.jadwal_cache = res
                 self.last_fetch_date = today
-        except Exception as e:
-            # Jika koneksi gagal, pertahankan cache sebelumnya jika ada
-            pass
+        except Exception: pass
 
     def get_upcoming_prayer(self, now_dt: datetime) -> Tuple[Optional[str], Optional[timedelta]]:
-        """
-        Menentukan jadwal salat berikutnya serta hitung mundur (countdown).
-        Returns: (nama_salat, sisa_waktu)
-        """
-        if not self.jadwal_cache or "jadwal" not in self.jadwal_cache:
-            return None, None
-
+        if not self.jadwal_cache or "jadwal" not in self.jadwal_cache: return None, None
         jadwal = self.jadwal_cache["jadwal"]
         today = now_dt.date()
-
         urutan = ["imsak", "subuh", "terbit", "dhuha", "dzuhur", "ashar", "maghrib", "isya"]
-        label_map = {
-            "imsak": "IMSAK", "subuh": "SUBUH", "terbit": "TERBIT", "dhuha": "DHUHA",
-            "dzuhur": "DZUHUR", "ashar": "ASHAR", "maghrib": "MAGHRIB", "isya": "ISYA'"
-        }
-
-        # Cari waktu berikutnya
+        label_map = {"imsak": "IMSAK", "subuh": "SUBUH", "terbit": "TERBIT", "dhuha": "DHUHA", "dzuhur": "DZUHUR", "ashar": "ASHAR", "maghrib": "MAGHRIB", "isya": "ISYA'"}
         for key in urutan:
             val_str = jadwal.get(key)
-            if not val_str:
-                continue
+            if not val_str: continue
             jam, menit = map(int, val_str.split(":"))
             waktu_salat_dt = datetime(today.year, today.month, today.day, jam, menit, 0)
-
             if now_dt < waktu_salat_dt:
-                diff = waktu_salat_dt - now_dt
-                return label_map[key], diff
-
-        # Jika sudah melewati Isya, target berikutnya adalah Imsak besok
+                return label_map[key], waktu_salat_dt - now_dt
         val_imsak = jadwal.get("imsak", "04:08")
         jam, menit = map(int, val_imsak.split(":"))
         imsak_besok = datetime(today.year, today.month, today.day, jam, menit, 0) + timedelta(days=1)
-        diff = imsak_besok - now_dt
-        return "IMSAK", diff
-
-    def render_peaclock_time_main(self, time_str: str) -> List[str]:
-        """Render time in peaclock digital style (5 rows, block 2x1)."""
-        lines = [''] * 5
-        for ch in time_str:
-            if ch == ':':
-                glyph = self._build_peaclock_colon_main()
-            elif ch == ' ':
-                glyph = ['     '] * 5
-            else:
-                glyph = self._build_peaclock_digit_main(SEGMENTS.get(ch, ''))
-            for i in range(5):
-                lines[i] += glyph[i]
-        return lines
-
-    def render_peaclock_time_small(self, time_str: str) -> List[str]:
-        """Render time in peaclock digital style (4 rows, small)."""
-        lines = [''] * 4
-        for ch in time_str:
-            if ch == ':':
-                glyph = self._build_peaclock_colon_small()
-            elif ch == ' ':
-                glyph = ['     '] * 4
-            else:
-                glyph = self._build_peaclock_digit_small(SEGMENTS.get(ch, ''))
-            for i in range(4):
-                lines[i] += glyph[i]
-        return lines
-
-    def _build_peaclock_digit_main(self, segs: str) -> List[str]:
-        """Build 5-row peaclock digital digit (block 2x1 style) - 12 chars wide."""
-        rows = [''] * 5
-        # Row 0: segment a (top) - 6 blocks
-        rows[0] = (SEG_ON if 'a' in segs else SEG_OFF) * 6
-        # Rows 1-2: f (left) and b (right)
-        for r in range(1, 3):
-            left = SEG_ON * 2 if 'f' in segs else SEG_OFF * 2
-            mid = SEG_OFF * 4
-            right = SEG_ON * 2 if 'b' in segs else SEG_OFF * 2
-            rows[r] = left + SEG_OFF * 4 + right
-        # Row 3: segment g (middle)
-        rows[3] = (SEG_ON if 'g' in segs else SEG_OFF) * 6
-        # Row 4: e (left), c (right)
-        rows[4] = (SEG_ON * 2 if 'e' in segs else SEG_OFF * 2) + SEG_OFF * 4 + (SEG_ON * 2 if 'c' in segs else SEG_OFF * 2)
-        return rows
-
-    def _build_peaclock_digit_small(self, segs: str) -> List[str]:
-        """Build 4-row small peaclock digit - 10 chars wide."""
-        rows = [''] * 4
-        # Row 0: segment a
-        rows[0] = (SEG_ON if 'a' in segs else SEG_OFF) * 5
-        # Row 1: f and b
-        left = SEG_ON * 2 if 'f' in segs else SEG_OFF * 2
-        right = SEG_ON * 2 if 'b' in segs else SEG_OFF * 2
-        rows[1] = left + SEG_OFF * 3 + right
-        # Row 2: segment g (middle)
-        rows[2] = (SEG_ON if 'g' in segs else SEG_OFF) * 5
-        # Row 3: e, c, d
-        rows[3] = (SEG_ON * 2 if 'e' in segs else SEG_OFF * 2) + SEG_OFF * 3 + (SEG_ON * 2 if 'c' in segs else SEG_OFF * 2)
-        return rows
-
-    def _build_peaclock_colon_main(self) -> List[str]:
-        """Build main clock colon (5 rows)."""
-        return ['     ', '  ██  ', '     ', '  ██  ', '     ']
-
-    def _build_peaclock_colon_small(self) -> List[str]:
-        """Build small clock colon (4 rows)."""
-        return ['     ', '  ██  ', '     ', '  ██  ']
-
-    def render_peaclock_time_main(self, time_str: str) -> List[str]:
-        """Render time in peaclock digital style (5 rows, block 2x1)."""
-        lines = [''] * 5
-        for ch in time_str:
-            if ch == ':':
-                glyph = self._build_peaclock_colon_main()
-            elif ch == ' ':
-                glyph = ['     '] * 5
-            else:
-                glyph = self._build_peaclock_digit_main(SEGMENTS.get(ch, ''))
-            for i in range(5):
-                lines[i] += glyph[i]
-        return lines
-
-    def render_peaclock_time_small(self, time_str: str) -> List[str]:
-        """Render time in peaclock digital style (4 rows, small)."""
-        lines = [''] * 4
-        for ch in time_str:
-            if ch == ':':
-                glyph = self._build_peaclock_colon_small()
-            elif ch == ' ':
-                glyph = ['     '] * 4
-            else:
-                glyph = self._build_peaclock_digit_small(SEGMENTS.get(ch, ''))
-            for i in range(4):
-                lines[i] += glyph[i]
-        return lines
+        return "IMSAK", imsak_besok - now_dt
 
     def build_frame(self) -> str:
-        """Menyusun seluruh tampilan frame dasbor dalam string tunggal."""
         cols, rows = shutil.get_terminal_size((120, 36))
         now = datetime.now()
         today = now.date()
@@ -496,7 +319,6 @@ class TerminalDashboard:
         lokasi_nama = self.config.get("lokasi_nama", "KAB. BOGOR")
         daerah = self.jadwal_cache.get("daerah", "JAWA BARAT") if self.jadwal_cache else ""
         lokasi_str = f"📍 Lokasi: {lokasi_nama}{', ' + daerah if daerah else ''} (ID: {self.config.get('lokasi_id')})"
-
         hari_nama = NAMA_HARI[today.weekday()]
         bulan_nama = NAMA_BULAN[today.month]
         masehi_str = f"{hari_nama}, {today.day} {bulan_nama} {today.year}"
@@ -504,30 +326,23 @@ class TerminalDashboard:
         tanggal_str = f"📅 {masehi_str}  |  🌙 {hijri_str}"
 
         output = []
-
-        # 1. HEADER
         output.append(center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols))
         output.append(center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols))
         output.append(center_line(f"{COLOR_SUBTITLE}{tanggal_str}{RESET}", cols))
         output.append("")
 
-        # Baris pemisah
         div_w = min(cols - 8, 104)
         div_pad = " " * max(0, (cols - div_w) // 2)
         output.append(f"{div_pad}{COLOR_BORDER}{'─' * div_w}{RESET}")
         output.append("")
 
-        # ============================================================
-        # JAM BERDETAK SAJA (peaclock digital main)
-        # ============================================================
-
+        # JAM BERDETAK SAJA - PEACLOCK DIGITAL EXACT (block 2x1, padding 2x1, ratio 2:1)
         time_str = now.strftime("%H:%M:%S")
-        clock_lines = self.render_peaclock_time_main(time_str)
+        clock_lines = _render_peaclock_time_main(time_str)
         
         for line in clock_lines:
             pad = " " * ((cols - len(line)) // 2)
             output.append(f"{pad}{COLOR_CLOCK}{BOLD}{line}{RESET}")
-
         output.append("")
         output.append("")
 
@@ -540,13 +355,10 @@ class TerminalDashboard:
             secs = tot_sec % 60
             cd_text = f"⏳ Menuju Waktu {next_prayer}: {hours:02d} Jam {mins:02d} Menit {secs:02d} Detik"
             countdown_line = f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}"
-            cd_len = len(cd_text)
         else:
             cd_text = "Memuat data jadwal salat..."
             countdown_line = f"{DIM}{cd_text}{RESET}"
-            cd_len = len(cd_text)
-
-        output.append(f"{' ' * max(0, (cols - cd_len) // 2)}{countdown_line}")
+        output.append(f"{' ' * ((cols - len(cd_text)) // 2)}{countdown_line}")
         output.append("")
 
         # FOOTER
@@ -554,77 +366,29 @@ class TerminalDashboard:
         footer_pad = " " * ((cols - len(footer_info)) // 2)
         output.append(f"{footer_pad}{DIM}{footer_info}{RESET}")
 
-        # Top margin
         content_height = len(output)
         top_margin = max(0, (rows - content_height) // 3)
-
-        full_screen = "\n" * top_margin + "\n".join(output)
-        return full_screen
-
-        # COUNTDOWN
-        next_prayer, remaining = self.get_upcoming_prayer(now)
-        if next_prayer and remaining:
-            tot_sec = int(remaining.total_seconds())
-            hours = tot_sec // 3600
-            mins = (tot_sec % 3600) // 60
-            secs = tot_sec % 60
-            cd_text = f"⏳ Menuju Waktu {next_prayer}: {hours:02d} Jam {mins:02d} Menit {secs:02d} Detik"
-            countdown_line = f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}"
-            cd_len = len(cd_text)
-        else:
-            cd_text = "Memuat data jadwal salat..."
-            countdown_line = f"{DIM}{cd_text}{RESET}"
-            cd_len = len(cd_text)
-
-        output.append(f"{' ' * max(0, (cols - cd_len) // 2)}{countdown_line}")
-        output.append("")
-
-        # FOOTER
-        footer_info = "Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI"
-        footer_pad = " " * ((cols - len(footer_info)) // 2)
-        output.append(f"{footer_pad}{DIM}{footer_info}{RESET}")
-
-        # Top margin
-        content_height = len(output)
-        top_margin = max(0, (rows - content_height) // 3)
-
         full_screen = "\n" * top_margin + "\n".join(output)
         return full_screen
 
     def run(self):
-        """Loop utama dasbor terminal."""
         self.setup_terminal()
         try:
-            # Muat jadwal pertama kali
             self.fetch_jadwal(force=True)
-
             while self.running:
-                # Periksa apakah pergantian hari (00:00) untuk refresh jadwal
                 today = date.today()
-                if self.last_fetch_date != today:
-                    self.fetch_jadwal(force=True)
-
-                # Render frame
+                if self.last_fetch_date != today: self.fetch_jadwal(force=True)
                 frame = self.build_frame()
-
-                # Tulis frame ke terminal tanpa flicker (\033[H memindahkan kursor ke pojok kiri atas)
                 sys.stdout.write(f"\033[H\033[J{frame}")
                 sys.stdout.flush()
-
-                # Tunggu 1 detik atau deteksi tombol input 'q' secara non-blocking
                 if sys.stdin.isatty():
                     r, _, _ = select.select([sys.stdin], [], [], 1.0)
                     if r:
                         ch = sys.stdin.read(1)
-                        if ch in ('q', 'Q', '\x1b', '\x03'):  # 'q', Esc, atau Ctrl+C
-                            self.running = False
-                else:
-                    time.sleep(1.0)
-
-        except KeyboardInterrupt:
-            self.running = False
-        finally:
-            self.restore_terminal()
+                        if ch in ('q', 'Q', '\x1b', '\x03'): self.running = False
+                else: time.sleep(1.0)
+        except KeyboardInterrupt: self.running = False
+        finally: self.restore_terminal()
 
 
 if __name__ == "__main__":
