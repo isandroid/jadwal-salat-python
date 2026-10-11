@@ -189,6 +189,47 @@ persis di bawah `mm`, berapa pun ukuran blok yang dipakai.
 Terverifikasi: pada `block_w = 2`, detik menempati kolom 20–33 — sama persis
 dengan rentang blok `MM` (20–33).
 
+### Warna (bisa diatur)
+
+Terminal mendukung tiga tingkat warna:
+
+| Tingkat | Jumlah | Format di `config.json` | Contoh |
+|---|---|---|---|
+| 4-bit (dasar) | 16 | `<nomor>` atau tebal `1;<nomor>` | `"1;9"` (merah terang) |
+| **8-bit (palet)** | **256** | `38;5;<nomor>` | `"1;38;5;196"` (merah terang) |
+| 24-bit (RGB bebas) | 16,7 juta | `38;2;<R>;<G>;<B>` | `"38;2;255;140;0"` (jingga) |
+
+Nilai boleh diawali `1;` untuk **tebal**, atau dikosongkan (`""`) untuk kembali
+ke warna bawaan terminal.
+
+Kunci yang tersedia (bawaan):
+
+| Kunci | Bawaan | Untuk |
+|---|---|---|
+| `judul` | `1;38;5;220` | judul dasbor |
+| `subjudul` | `38;5;153` | lokasi & tanggal |
+| `nama` | `1;38;5;231` | nama waktu salat (SUBUH, DZUHUR, ...) |
+| `jam` | `1;38;5;79` | jam berdetak + detik |
+| `waktu_azan` | `1;38;5;79` | angka waktu azan |
+| `waktu_iqamat` | `38;5;44` | angka waktu iqamat |
+| `berikutnya` | `1;38;5;226` | waktu salat berikutnya (disorot) |
+| `label_iqamat` | `38;5;110` | label "IQAMAT" |
+| `hitung_mundur` | `1;38;5;227` | baris hitung mundur di header |
+| `garis` | `38;5;240` | garis/bingkai |
+
+```bash
+python3 main.py --warna                              # lihat palet 256 warna + warna terpakai
+python3 main.py --warna waktu_azan 1;38;5;196        # ubah warna waktu azan
+python3 main.py --warna waktu_iqamat 38;2;255;140;0  # pakai RGB bebas
+python3 main.py --warna waktu_azan ""                # kembalikan ke warna bawaan terminal
+```
+
+Nilai disimpan di `config.json`:
+
+```json
+"warna": { "waktu_azan": "1;38;5;196", "judul": "1;38;5;51" }
+```
+
 ### Penyesuaian otomatis
 
 Ukuran blok, padding sel, tinggi baris, header, dan jarak footer dipilih agar

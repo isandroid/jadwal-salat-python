@@ -20,7 +20,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "padding_atas": 2,       # baris kosong di atas tampilan (minimum)
     "padding_bawah": 2,      # baris kosong di bawah tampilan (minimum)
     "padding_ratakan": True, # True = sisa ruang dibagi rata (tampilan di tengah)
-    "kolon_berkedip": False  # False = titik dua jam statis (detik tampil di bawah mm)
+    "kolon_berkedip": False, # False = titik dua jam statis (detik tampil di bawah mm)
+    "warna": {}              # kosong = pakai warna bawaan; lihat WARNA_DEFAULT di dashboard.py
 }
 
 def load_config() -> Dict[str, Any]:

@@ -32,6 +32,72 @@ RESET = "\033[0m"
 BOLD = "\033[1m"
 DIM = "\033[2m"
 
+# ==========================================
+# WARNA — dapat diatur dari config.json pada kunci "warna".
+# Nilainya adalah parameter SGR (isi di dalam  ESC [ ... m ):
+#
+#   "1;38;5;79"       tebal + warna palet-256 nomor 79
+#   "38;5;79"         warna palet-256 nomor 79 (tanpa tebal)
+#   "38;2;255;128;0"  warna 24-bit (RGB bebas)
+#   "1;33"            warna dasar 4-bit: kuning tebal
+#   ""  atau "0"      tanpa warna (ikut warna bawaan terminal)
+#
+# Lihat daftar nomornya dengan:  python3 main.py --warna
+# ==========================================
+WARNA_DEFAULT = {
+    "judul":         "1;38;5;220",   # judul dasbor
+    "subjudul":      "38;5;153",     # lokasi & tanggal
+    "nama":          "1;38;5;231",   # nama waktu salat (SUBUH, DZUHUR, ...)
+    "jam":           "1;38;5;79",    # jam berdetak + detik
+    "waktu_azan":    "1;38;5;79",    # angka waktu azan
+    "waktu_iqamat":  "38;5;44",      # angka waktu iqamat
+    "berikutnya":    "1;38;5;226",   # waktu salat berikutnya (disorot)
+    "label_iqamat":  "38;5;110",     # label "IQAMAT"
+    "hitung_mundur": "1;38;5;227",   # baris hitung mundur di header
+    "garis":         "38;5;240",     # garis/bingkai
+}
+
+
+def sgr(params: str) -> str:
+    """Ubah parameter SGR menjadi urutan ANSI lengkap ('' = tanpa warna)."""
+    params = str(params).strip()
+    if not params or params == "0":
+        return ""
+    return f"\033[{params}m"
+
+
+def warna_dipakai(cfg: Dict[str, Any]) -> Dict[str, str]:
+    """Gabungkan nilai bawaan dengan yang ada di config.json."""
+    hasil = dict(WARNA_DEFAULT)
+    for k, v in (cfg.get("warna") or {}).items():
+        if k in WARNA_DEFAULT and v is not None:
+            hasil[k] = str(v)
+    return hasil
+
+
+def terapkan_warna(cfg: Dict[str, Any]) -> Dict[str, str]:
+    """Terapkan warna dari config.json ke variabel modul."""
+    global COLOR_TITLE, COLOR_SUBTITLE, COLOR_BORDER, COLOR_CLOCK, COLOR_TIME
+    global COLOR_IQAMAT_TIME, COLOR_NAME, COLOR_IQAMAT_LABEL, COLOR_INFO
+    global COLOR_PRAYER, COLOR_PRAYER_NEXT, COLOR_COUNTDOWN
+
+    w = warna_dipakai(cfg)
+    COLOR_TITLE        = sgr(w["judul"])
+    COLOR_SUBTITLE     = sgr(w["subjudul"])
+    COLOR_BORDER       = sgr(w["garis"])
+    COLOR_CLOCK        = sgr(w["jam"])
+    COLOR_TIME         = sgr(w["waktu_azan"])
+    COLOR_IQAMAT_TIME  = sgr(w["waktu_iqamat"])
+    COLOR_NAME         = sgr(w["nama"])
+    COLOR_IQAMAT_LABEL = sgr(w["label_iqamat"])
+    COLOR_INFO         = sgr(w["label_iqamat"])
+    COLOR_PRAYER       = COLOR_IQAMAT_TIME
+    COLOR_PRAYER_NEXT  = sgr(w["berikutnya"])
+    COLOR_COUNTDOWN    = sgr(w["hitung_mundur"])
+    return w
+
+
+# Nilai awal (ditimpa oleh terapkan_warna saat dasbor dijalankan)
 COLOR_TITLE = "\033[1;38;5;220m"
 COLOR_SUBTITLE = "\033[38;5;153m"
 COLOR_BORDER = "\033[38;5;34m"
@@ -436,6 +502,7 @@ class TerminalDashboard:
         self.last_fetch_date: Optional[date] = None
         self.sumber_data = ""        # internet | cache | offline | kosong
         self.pesan_error = ""
+        self.warna = terapkan_warna(self.config)
         cache.init()
         self.old_terminal_settings = None
 

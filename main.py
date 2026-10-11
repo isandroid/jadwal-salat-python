@@ -2,7 +2,8 @@ import sys
 from datetime import date
 from api_client import JadwalSalatAPI
 from config import load_config, save_config, CONFIG_FILE_PATH
-from dashboard import TerminalDashboard, hitung_waktu_iqamat
+from dashboard import (TerminalDashboard, hitung_waktu_iqamat,
+                       WARNA_DEFAULT, warna_dipakai)
 import cache as cache_mod
 
 def tampilkan_jadwal(jadwal_item: dict, cfg: dict):
@@ -46,6 +47,8 @@ def print_help():
   python3 main.py --set-iqamat <salat> <menit> -> Atur jeda iqamat (subuh/dzuhur/ashar/maghrib/isya)
   python3 main.py --config          -> Tampilkan konfigurasi saat ini
   python3 main.py --data            -> Tampilkan isi penyimpanan lokal (SQLite)
+  python3 main.py --warna           -> Lihat palet 256 warna + warna yang dipakai
+  python3 main.py --warna <kunci> <nilai> -> Ubah satu warna (mis. --warna waktu_azan 1;38;5;196)
 """)
 
 def main():
@@ -63,6 +66,52 @@ def main():
         if arg == "--dashboard":
             dashboard = TerminalDashboard()
             dashboard.run()
+            return
+
+        if arg == "--warna":
+            if len(sys.argv) > 3:                     # --warna <kunci> <nilai>
+                kunci, nilai = sys.argv[2], sys.argv[3]
+                if kunci not in WARNA_DEFAULT:
+                    print(f"[-] Kunci '{kunci}' tidak dikenal.")
+                    print(f"    Pilihan: {', '.join(WARNA_DEFAULT)}")
+                    return
+                save_config(warna={**warna_dipakai(cfg), kunci: nilai})
+                print(f"[\u2713] Warna '{kunci}' disimpan di config.json: {nilai}")
+                print(f"    Contoh tampilannya: {chr(27)}[{nilai}m███ contoh warna{chr(27)}[0m")
+                return
+
+            dipakai = warna_dipakai(cfg)
+            print("=== Warna yang dipakai sekarang (dari config.json) ===")
+            for k, v in dipakai.items():
+                tanda = " (bawaan)" if v == WARNA_DEFAULT[k] else " (diubah)"
+                sw = (f"{chr(27)}[{v}m\u2588\u2588\u2588{chr(27)}[0m"
+                      if v and v != "0" else "   ")
+                print(f"  {sw} {k:15s} = {v or '(tanpa warna)'}{tanda}")
+            print()
+            print("=== Palet 256 warna (8-bit) — pakai nomornya, mis. 1;38;5;<nomor> ===")
+            for baris in range(16):
+                bagian = []
+                for kolom in range(16):
+                    n = baris * 16 + kolom
+                    bagian.append(f"{chr(27)}[38;5;{n};48;5;{n}m\u2588\u2588\u2588{chr(27)}[0m{n:3d}")
+                print(" " + " ".join(bagian))
+            print()
+            print("=== 16 warna dasar (4-bit) — mis. 1;<nomor> atau <nomor> ===")
+            nama = ["hitam", "merah", "hijau", "kuning", "biru", "magenta", "sian", "putih",
+                    "hitam-t", "merah-t", "hijau-t", "kuning-t", "biru-t", "magenta-t", "sian-t", "putih-t"]
+            for i in range(16):
+                print(f"  \033[38;5;{i};48;5;{i}m\u2588\u2588\u2588\033[0m {i:2d} "
+                      f"\033[38;5;{i}mcontoh\033[0m  {nama[i]:<10s}", end="")
+                if i % 4 == 3:
+                    print()
+            print()
+            print("=== 24-bit (RGB bebas) — format 38;2;<R>;<G>;<B> ===")
+            for r, g, b in ((255,140,0),(255,0,128),(0,200,255),(124,252,0)):
+                print(f"  \033[38;2;{r};{g};{b};48;2;{r};{g};{b}m\u2588\u2588\u2588\033[0m "
+                      f"\033[38;2;{r};{g};{b}mcontoh\033[0m  ->  38;2;{r};{g};{b}")
+            print()
+            print("Cara mengubah:  python3 main.py --warna <kunci> <nilai>")
+            print("Contoh        :  python3 main.py --warna waktu_azan 1;38;5;196")
             return
 
         if arg in ("--data", "--cache"):
