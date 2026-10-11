@@ -486,10 +486,12 @@ class TerminalDashboard:
                 res_lines.append(f"{cards_pad}{cl}")
             return res_lines, total_w
 
-        visible = [k for k in urutan_keys if k not in self.HIDDEN_KEYS]
+        visible = [k for k in urutan_keys if k[1] not in self.HIDDEN_KEYS]
 
         if can_fit_single_row(len(visible)):
+            # Single row: all 5 cards side by side
             output.extend(render_cards_chunk(urutan_keys)[0])
+        else:
             # 2 baris: 3 kartu atas, 2 kartu bawah (masing-masing di tengah)
             half = (len(visible) + 1) // 2
             top_keys = visible[:half]
@@ -500,3 +502,57 @@ class TerminalDashboard:
             if bot_keys:
                 output.append("")
                 output.extend(render_cards_chunk(bot_keys)[0])
+
+        output.append("")
+
+        # 5. FOOTER INFORMASI
+        footer_info = "Tekan [q] atau [Ctrl+C] untuk keluar  \u2022  Sumber Data: Bimas Islam Kemenag RI"
+        footer_pad = " " * ((cols - len(footer_info)) // 2)
+        output.append(f"{footer_pad}{DIM}{footer_info}{RESET}")
+
+        # Tambahkan padding atas jika terminal cukup tinggi (misal pada 1366x768)
+        content_height = len(output)
+        top_margin = max(0, (rows - content_height) // 3)
+
+        full_screen = "\n" * top_margin + "\n".join(output)
+        return full_screen
+
+    def run(self):
+        """Loop utama dasbor terminal."""
+        self.setup_terminal()
+        try:
+            # Muat jadwal pertama kali
+            self.fetch_jadwal(force=True)
+
+            while self.running:
+                # Periksa apakah pergantian hari (00:00) untuk refresh jadwal
+                today = date.today()
+                if self.last_fetch_date != today:
+                    self.fetch_jadwal(force=True)
+
+                # Render frame
+                frame = self.build_frame()
+
+                # Tulis frame ke terminal tanpa flicker (\033[H memindahkan kursor ke pojok kiri atas)
+                sys.stdout.write(f"\033[H\033[J{frame}")
+                sys.stdout.flush()
+
+                # Tunggu 1 detik atau deteksi tombol input 'q' secara non-blocking
+                if sys.stdin.isatty():
+                    r, _, _ = select.select([sys.stdin], [], [], 1.0)
+                    if r:
+                        ch = sys.stdin.read(1)
+                        if ch in ('q', 'Q', '\x1b', '\x03'):  # 'q', Esc, atau Ctrl+C
+                            self.running = False
+                else:
+                    time.sleep(1.0)
+
+        except KeyboardInterrupt:
+            self.running = False
+        finally:
+            self.restore_terminal()
+
+
+if __name__ == "__main__":
+    dashboard = TerminalDashboard()
+    dashboard.run()
