@@ -168,9 +168,17 @@ def render_peaclock_digital(hh: int, mm: int, ss: int,
 # sehingga membentuk karakter 3 x 5 padat. Tanpa detik (set seconds off).
 # ==========================================
 
-def render_peaclock_default(hh: int, mm: int, block_w: int = 2) -> List[str]:
-    """Render HH:MM gaya peaclock `cfg/default` -> 5 baris, blok rapat."""
+def render_peaclock_default(hh: int, mm: int, block_w: int = 2,
+                            colon_on: bool = True) -> List[str]:
+    """Render HH:MM gaya peaclock `cfg/default` -> 5 baris, blok rapat.
+
+    colon_on=False membuat titik dua padam (untuk efek kolon berkedip).
+    """
     grid = build_grid(hh, mm, 0, show_seconds=False)
+    if not colon_on:
+        for r in range(NROW):
+            for c in COLON_COLS_NOSEC:
+                grid[r][c] = OFF
     on = BLOCK_CHAR * block_w
     off = " " * block_w
     return ["".join(on if v in (ON, COLON) else off for v in row) for row in grid]
@@ -284,6 +292,73 @@ def build_prayer_section(entries, block_w: int, layout, cols: int,
                     parts.append(f"{COLOR_PRAYER}{seg}{RESET}")
             out.append(left + gap.join(parts))
         if ri < len(layout) - 1:
+            out.append("")
+    return out
+
+
+
+# ==========================================
+# GRID 3 x 2  --  semua sel memakai font peaclock `default` (3x5 padat)
+#   baris 1 : JAM (berdetak) | SUBUH    | DZUHUR
+#   baris 2 : ASHAR          | MAGHRIB  | ISYA'
+# ==========================================
+GRID_COLS = 3
+GRID_ROWS = 2
+
+
+def choose_grid(cols: int):
+    """Pilih (block_w, sep) terbesar agar 3 kolom muat. None bila tidak muat."""
+    for bw in (4, 3, 2, 1):
+        for sep in (6, 4, 2):
+            if GRID_COLS * NCOL_NOSEC * bw + (GRID_COLS - 1) * sep <= cols - 2:
+                return bw, sep
+    return None
+
+
+def build_grid_cells(now: datetime, entries, block_w: int, colon_on: bool):
+    """Enam sel berurutan: jam, lalu 5 waktu salat."""
+    blank = " " * (NCOL_NOSEC * block_w)
+    cells = [("JAM", render_peaclock_default(now.hour, now.minute, block_w, colon_on))]
+    for label, hhmm in entries:
+        if hhmm:
+            hh, mm = (int(x) for x in hhmm.split(":"))
+            cells.append((label, render_peaclock_default(hh, mm, block_w)))
+        else:
+            cells.append((label, [blank] * 5))
+    return cells
+
+
+def render_grid(cells, block_w: int, cols: int,
+                highlight: int = -1, sep: int = 6) -> List[str]:
+    """Render sel menjadi grid 3 x 2: 1 baris label + 5 baris waktu per sel."""
+    card_w = NCOL_NOSEC * block_w
+    total_w = GRID_COLS * card_w + (GRID_COLS - 1) * sep
+    left = " " * max(0, (cols - total_w) // 2)
+    gap = " " * sep
+
+    out: List[str] = []
+    for r in range(GRID_ROWS):
+        row = cells[r * GRID_COLS:(r + 1) * GRID_COLS]
+        labels = []
+        for ci, (label, _) in enumerate(row):
+            labels.append(f"{COLOR_PRAYER_LABEL}{label.center(card_w)}{RESET}")
+        out.append(left + gap.join(labels))
+
+        for li in range(5):
+            parts = []
+            for ci, (_, lines) in enumerate(row):
+                gi = r * GRID_COLS + ci
+                if gi == 0:
+                    color = COLOR_CLOCK                 # jam berdetak
+                elif gi == highlight:
+                    color = COLOR_PRAYER_NEXT           # waktu salat berikutnya
+                else:
+                    color = COLOR_PRAYER
+                seg = lines[li] if li < len(lines) else " " * card_w
+                parts.append(f"{color}{seg}{RESET}")
+            out.append(left + gap.join(parts))
+
+        if r < GRID_ROWS - 1:
             out.append("")
     return out
 
@@ -464,39 +539,20 @@ class TerminalDashboard:
         out.append(f"{div_pad}{COLOR_BORDER}{'─' * div_w}{RESET}")
         out.append("")
 
-        # ---- Waktu-waktu salat: peaclock `default` (font 3x5 padat) ----
-        chosen = choose_prayer_layout(cols, rows)
-        if chosen:
-            prayer_bw, prayer_layout = chosen
-            prayer_h = len(prayer_layout) * 6 + (len(prayer_layout) - 1)
-        else:
-            prayer_bw, prayer_layout, prayer_h = 0, None, 2   # daftar teks ringkas
-
-        # ---- Jam berdetak: peaclock view digital (persis) ----
-        reserved = len(out) + 1 + prayer_h + 1 + 2   # + blank + countdown + footer
-        x_block, y_block, x_space, y_space = choose_geometry(cols, rows, reserved_rows=reserved)
-        clock_lines = render_peaclock_digital(
-            now.hour, now.minute, now.second,
-            show_seconds=True, x_block=x_block, y_block=y_block,
-            x_space=x_space, y_space=y_space,
-        )
-        clock_w = max((len(l) for l in clock_lines), default=0)
-        pad = " " * max(0, (cols - clock_w) // 2)
-        for line in clock_lines:
-            if line.strip():
-                out.append(f"{pad}{COLOR_CLOCK}{line}{RESET}")
-            else:
-                out.append("")
-
-        out.append("")
-
-        # ---- Waktu salat (peaclock default) ----
+        # ---- Grid 3 x 2: jam berdetak + waktu salat (font peaclock `default`) ----
         entries = self.prayer_entries()
-        hi = self.next_prayer_index(now)
-        if prayer_layout:
-            out.extend(build_prayer_section(entries, prayer_bw, prayer_layout, cols, highlight=hi))
-        else:
-            out.extend(build_prayer_compact(entries, cols, highlight=hi))
+        chosen = choose_grid(cols)
+        if chosen:
+            grid_bw, grid_sep = chosen
+            colon_on = (now.second % 2 == 0)        # hanya kolon yang berdetak
+            cells = build_grid_cells(now, entries, grid_bw, colon_on)
+            hi = self.next_prayer_index(now)
+            out.extend(render_grid(cells, grid_bw, cols,
+                                   highlight=(hi + 1 if hi >= 0 else -1),
+                                   sep=grid_sep))
+        else:                                       # terminal sangat sempit
+            out.extend(build_prayer_compact(entries, cols,
+                                            highlight=self.next_prayer_index(now)))
         out.append("")
 
         # ---- Countdown ----

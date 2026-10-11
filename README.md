@@ -61,29 +61,51 @@ minimal 160 kolom.
 
 ---
 
-## Waktu-waktu salat — peaclock `cfg/default` (font 3×5 padat)
+## Tampilan: grid 3 × 2, font peaclock `cfg/default` (3 × 5 padat)
 
-Waktu salat ditampilkan dengan **font 3 × 5 yang sama** seperti view digital,
-tetapi memakai setelan `cfg/default` peaclock:
+Seluruh isi dasbor memakai **satu font yang sama**: peaclock `cfg/default`
+(tabel `_symbol` 3 × 5, `padding 0 0` → blok rapat membentuk karakter padat).
+
+```
+baris 1 :  JAM (berdetak)      |  SUBUH          |  DZUHUR
+baris 2 :  ASHAR               |  MAGHRIB        |  ISYA'
+```
+
+- **JAM** menampilkan `HH:MM` **tanpa detik**; yang berdetak hanya **titik dua**
+  (menyala saat detik genap, padam saat detik ganjil).
+- Enam sel berukuran **persis sama**.
+- Waktu salat berikutnya disorot dengan warna berbeda.
+- Ukuran blok dipilih otomatis agar 3 kolom selalu muat:
+
+| Lebar terminal | Blok | Jarak antar sel |
+|---|---|---|
+| ≥ 218 kolom | 4 | 6 |
+| 214 – 217 | 4 | 4 |
+| 210 – 213 | 4 | 2 |
+| 167 – 209 | 3 | 6 |
+| 163 – 166 | 3 | 4 |
+| 159 – 162 | 3 | 2 |
+| 116 – 158 | 2 | 6 |
+| 112 – 115 | 2 | 4 |
+| 108 – 111 | 2 | 2 |
+| 65 – 107 | 1 | 6 |
+| 61 – 64 | 1 | 4 |
+| 57 – 60 | 1 | 2 |
+| < 57 kolom | — | daftar teks ringkas |
+
+Batang pemisah di bawah header juga otomatis menyusut bila terminal sempit.
+
+### Rincian setelan `cfg/default` peaclock
 
 | Setelan | Nilai | Akibat |
 |---|---|---|
-| `block 2 1` | blok 2 kolom × 1 baris | tiap blok = 1 karakter blok penuh (`█`) |
-| `padding 0 0` | **tanpa jarak** | blok rapat → terbentuk **karakter 3 × 5 padat** |
+| `block 2 1` | blok 2 kolom × 1 baris | tiap blok = karakter blok penuh `█` |
+| `padding 0 0` | **tanpa jarak** | blok rapat → karakter **3 × 5 padat** |
 | `set seconds off` | tanpa detik | hanya `HH:MM` |
-| `view digital` | font `_symbol` 3 × 5 | sama dengan jam besar |
+| `view digital` | tabel `_symbol` 3 × 5 | sama untuk jam maupun waktu salat |
 
-Tata letak kartu (5 waktu) dipilih otomatis agar muat:
-
-| Lebar terminal | Blok | Tata letak |
-|---|---|---|
-| ≥ 236 kolom | 4 | 3 + 2 |
-| 178 – 235 | 3 | 3 + 2 |
-| 96 – 177 | 2 | 3 + 2 |
-| 63 – 95 | 1 | 3 + 2 |
-| < 63 | — | daftar teks ringkas |
-
-Waktu salat yang akan datang disorot dengan warna berbeda.
+Lebar satu sel `HH:MM` = `17 × block_w` karakter, tinggi 5 baris
+(ditambah 1 baris label per sel).
 
 ---
 
