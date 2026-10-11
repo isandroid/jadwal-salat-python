@@ -625,15 +625,6 @@ class TerminalDashboard:
 
                 cells[row_idx].append(build_cell(label, key, is_active, is_past))
 
-        # Render clock first (top-left area)
-        time_str = now.strftime("%H:%M:%S")
-        clock_lines = self.render_peaclock_time_main(time_str)
-        clock_w = len(clock_lines[0])
-        clock_pad = " " * 2
-        for line in clock_lines:
-            output.append(f"{clock_pad}{COLOR_CLOCK}{BOLD}{line}{RESET}")
-        output.append("")
-
         # Render grid: 2 rows x 3 cols
         gap = 4
         for row_idx in range(2):
