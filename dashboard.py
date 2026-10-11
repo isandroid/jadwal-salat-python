@@ -34,10 +34,14 @@ DIM = "\033[2m"
 COLOR_TITLE = "\033[1;38;5;220m"
 COLOR_SUBTITLE = "\033[38;5;153m"
 COLOR_BORDER = "\033[38;5;34m"
-COLOR_CLOCK = "\033[1;38;5;79m"      # teal, sama nuansa dengan peaclock digital
-COLOR_PRAYER = "\033[38;5;44m"       # waktu salat (peaclock default, 3x5 padat)
+COLOR_CLOCK = "\033[1;38;5;79m"       # jam berdetak (bold teal)
+COLOR_TIME = "\033[1;38;5;79m"        # waktu azan (bold teal)
+COLOR_IQAMAT_TIME = "\033[38;5;44m"   # waktu iqamat (teal, tanpa bold)
+COLOR_NAME = "\033[1;38;5;231m"       # nama waktu salat: BOLD putih terang
+COLOR_IQAMAT_LABEL = "\033[38;5;110m" # label "IQAMAT" (sekunder)
+COLOR_INFO = "\033[38;5;110m"         # info di sel jam (tanggal, hitung mundur)
+COLOR_PRAYER = "\033[38;5;44m"
 COLOR_PRAYER_NEXT = "\033[1;38;5;226m"  # waktu salat berikutnya
-COLOR_PRAYER_LABEL = "\033[38;5;245m"
 COLOR_COUNTDOWN = "\033[1;38;5;227m"
 
 
@@ -248,11 +252,11 @@ def _fit(text: str, width: int) -> str:
 
 
 def build_cells(now: datetime, rows_data, grid_bw: int, colon_on: bool,
-                info_lines: List[str], row_lines):
-    """Susun isi 4 x 3 sel sesuai `row_lines` (baris label opsional pada iqamat)."""
+                info_lines: List[str], row_lines, highlight: int = -1):
+    """Susun isi 4 x 3 sel. Tiap baris = (teks, kode warna)."""
     blank = " " * (NCOL_NOSEC * grid_bw)
 
-    def time_of(hhmm):
+    def time_lines(hhmm):
         if not hhmm:
             return [blank] * 5
         hh, mm = (int(x) for x in hhmm.split(":"))
@@ -261,22 +265,35 @@ def build_cells(now: datetime, rows_data, grid_bw: int, colon_on: bool,
     def fit(lines, n):
         lines = list(lines)
         while len(lines) < n:
-            lines.append(blank)
+            lines.append(("", ""))
         return lines[:n]
 
-    cells: Dict[Tuple[int, int], List[str]] = {}
-    # kolom 1, baris 1-2 : jam berdetak (baris 1-2 menyatu)
-    cells[(0, 0)] = fit(["JAM"] + render_peaclock_default(now.hour, now.minute,
-                                                         grid_bw, colon_on), row_lines[0])
-    n_info = row_lines[1]
-    info = list(info_lines) + [""] * n_info
-    cells[(1, 0)] = fit([""] + info[:max(0, n_info - 1)], n_info)
+    cells: Dict[Tuple[int, int], List[Tuple[str, str]]] = {}
 
-    # SUBUH & DZUHUR di baris 1, ASHAR & MAGHRIB & ISYA' di baris 3
+    # kolom 1, baris 1-2 : jam berdetak (menyatu)
+    clock = [("JAM", COLOR_NAME)]
+    clock += [(t, COLOR_CLOCK) for t in
+              render_peaclock_default(now.hour, now.minute, grid_bw, colon_on)]
+    cells[(0, 0)] = fit(clock, row_lines[0])
+
+    n_info = row_lines[1]
+    info = [("", "")] + [(t, COLOR_INFO) for t in info_lines]
+    cells[(1, 0)] = fit(info, n_info)
+
+    # SUBUH & DZUHUR di baris 1; ASHAR, MAGHRIB, ISYA' di baris 3
     placement = [(0, 1), (0, 2), (2, 0), (2, 1), (2, 2)]
-    for (label, azan, iq), (r, c) in zip(rows_data, placement):
-        cells[(r, c)] = fit([label] + time_of(azan), row_lines[r])
-        iq_lines = ([("IQAMAT")] if row_lines[r + 1] == CELL_LINES else []) + time_of(iq)
+    for idx, ((label, azan, iq), (r, c)) in enumerate(zip(rows_data, placement)):
+        is_next = (idx == highlight)
+        name_col = COLOR_PRAYER_NEXT if is_next else COLOR_NAME
+        t_col = COLOR_PRAYER_NEXT if is_next else COLOR_TIME
+        iq_col = COLOR_PRAYER_NEXT if is_next else COLOR_IQAMAT_TIME
+
+        cells[(r, c)] = fit([(label, name_col)] + [(t, t_col) for t in time_lines(azan)],
+                            row_lines[r])
+        iq_lines = []
+        if row_lines[r + 1] == CELL_LINES:
+            iq_lines.append(("IQAMAT", COLOR_IQAMAT_LABEL))
+        iq_lines += [(t, iq_col) for t in time_lines(iq)]
         cells[(r + 1, c)] = fit(iq_lines, row_lines[r + 1])
     return cells
 
@@ -292,8 +309,9 @@ def render_grid(cells, cols: int, inner_w: int, pad: int = 2,
         parts = []
         for col in range(GRID_COLS):
             line = cells.get((r, col), [])
-            text = line[li] if li < len(line) else ""
-            parts.append(" " * pad + _fit(text, inner_w) + " " * pad)
+            text, color = line[li] if li < len(line) else ("", "")
+            seg = " " * pad + _fit(text, inner_w) + " " * pad
+            parts.append(f"{color}{seg}{RESET}" if (color and text.strip()) else seg)
         return BOX_V + BOX_V.join(parts) + BOX_V
 
     def hline(left, mid, right):
@@ -518,14 +536,19 @@ class TerminalDashboard:
             cd_short = ""
             cd_text = "Memuat data jadwal salat..."
 
+        # Judul: kapital + spasi antar huruf agar tampak lebih besar (bila muat)
+        judul_txt = judul.upper()
+        judul_lebar = "  ".join(judul_txt.split())        # jarak antar kata dilebarkan
+        judul_lebar = " ".join(judul_lebar)
+        if visible_width(judul_lebar) <= cols - 2:
+            judul_txt = judul_lebar
+        judul_line = center_line(f"{COLOR_TITLE}{judul_txt}{RESET}", cols)
+
         # Header menyusut otomatis bila terminal pendek (judul selalu tampil)
         header_candidates = [
-            [center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols),
-             center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols),
-             ""],
-            [center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols),
-             center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols)],
-            [center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols)],
+            [judul_line, center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols), ""],
+            [judul_line, center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols)],
+            [judul_line],
             [],
         ]
         out: List[str] = []
@@ -551,7 +574,8 @@ class TerminalDashboard:
                 _clip(cd_short, inner_w),
             ]
             cells = build_cells(now, self.prayer_iqamat_entries(), grid_bw,
-                                colon_on, info_lines, row_lines)
+                                colon_on, info_lines, row_lines,
+                                highlight=self.next_prayer_index(now))
             out.extend(render_grid(cells, cols, inner_w, grid_pad, row_lines))
         else:                                       # terminal sangat sempit
             out.extend(build_prayer_compact(self.prayer_iqamat_entries(), cols,

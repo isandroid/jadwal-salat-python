@@ -108,6 +108,30 @@ Rincian:
   (`subuh_iqamat`, `dzuhur_iqamat`, `ashar_iqamat`, `maghrib_iqamat`, `isya_iqamat`).
 - Bingkai memakai karakter garis: `┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`.
 
+### Gaya teks (bold / menonjol)
+
+Terminal tidak bisa mengubah ukuran font, jadi penekanan dilakukan dengan
+**bold + warna kontras**, dan judul diberi **jarak antar huruf** agar tampak
+lebih besar:
+
+| Elemen | Gaya | Kode ANSI |
+|---|---|---|
+| Judul | bold kuning terang + jarak antar huruf | `1;38;5;220` |
+| Nama waktu salat (JAM, SUBUH, ...) | **bold putih terang** | `1;38;5;231` |
+| Waktu salat berikutnya | bold kuning (disorot) | `1;38;5;226` |
+| Waktu azan | bold teal | `1;38;5;79` |
+| Waktu iqamat | teal (tanpa bold, sekunder) | `38;5;44` |
+| Label "IQAMAT", info sel jam | abu-biru muda | `38;5;110` |
+
+Jarak antar huruf pada judul otomatis dimatikan bila versi renggangnya tidak
+muat di lebar terminal (diuji: judul 54 karakter pada terminal 120 kolom masih
+renggang, 115 kolom; judul yang lebih panjang kembali rapat).
+
+Catatan: ANSI tidak menyediakan pengubah ukuran font. Bila Pak Isa ingin nama
+waktu salat benar-benar *lebih tinggi* (bukan sekadar bold), itu harus digambar
+sebagai seni blok — konsekuensinya tiap sel bertambah tinggi sehingga layout
+3 × 4 tidak lagi muat di terminal 36 baris.
+
 ### Penyesuaian otomatis
 
 Ukuran blok, padding sel, tinggi baris, header, dan jarak footer dipilih agar
