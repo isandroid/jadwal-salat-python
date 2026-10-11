@@ -1,42 +1,42 @@
-# Dasbor Terminal Jadwal Salat — Jam Digital Peaclock Style
+# Dasbor Terminal Jadwal Salat — Jam Digital Peaclock
 
-Aplikasi **jam digital + countdown salat** untuk terminal, dengan tampilan jam
-bergaya **peaclock** (`view digital`, `block 2 1`, `padding 2 1`, `ratio 2 1`).
-Data jadwal salat bersumber dari Bimas Islam Kemenag RI (via MyQuran Open API).
-
----
-
-## Tampilan
-
-```
-                            JADWAL SALAT MASJID NASR
-                 📍 Lokasi: KAB. BOGOR, JAWA BARAT (ID: 1204)
-              📅 Minggu, 11 Oktober 2026  |  🌙 28 Rabi'ul Akhir 1448 H
-
-        ──────────────────────────────────────────────────────────
-
-                        ██████          ██████
-                    ██      ██              ██  ██
-                    ██      ██    ██        ██  ██    ██
-                        ██████          ██████  ██████
-                    ██      ██    ██    ██          ██    ██
-                    ██      ██          ██          ██
-                        ██████          ██████
-
-                    ⏳ Menuju Waktu ASHAR: 01 Jam 19 Menit 47 Detik
-```
-
-Jam besar di tengah = jam berdetak (update tiap detik).
+Dasbor jam digital + hitung mundur waktu salat untuk terminal.
+Jam besarnya **persis sama** dengan [peaclock](https://github.com/octobanana/peaclock)
+`view digital` — tanpa modifikasi.
 
 ---
 
-## Fitur
+## Bentuk jam (persis peaclock `view digital`)
 
-1. **Jam digital peaclock** — 7-segment, blok 2×1, glyph 6 kolom (digit & `:`
-   sama lebar sehingga grid selalu rata).
-2. **Countdown** — hitung mundur ke waktu salat berikutnya, real-time.
-3. **Header** — judul, lokasi, tanggal Masehi & Hijriah.
-4. **Sumber data resmi** — Bimas Islam Kemenag RI.
+Diambil langsung dari kode sumber peaclock:
+
+| Berkas sumber peaclock | Yang diambil |
+|---|---|
+| `src/peaclock/peaclock.hh` | tabel `_symbol` — font piksel **3 kolom × 5 baris** per digit |
+| `src/peaclock/peaclock.cc` | `set_clock_digital()`, `fill_digital()`, `draw_clock()` |
+| `cfg/digital` | `block 2 1`, `padding 2 1`, `margin 2 1`, `ratio 2 1` |
+
+Aturan gambar:
+
+- Setiap **digit** = grid **3 × 5 blok**.
+- Setiap **blok** = 2 karakter (`██`) dan **jarak antar blok = 2 karakter**
+  (dari `block 2 1` + `padding 2 1`), sehingga blok tampak persegi.
+- **Titik dua** = 1 blok pada baris ke-2 dan ke-4.
+- Susunan kolom mengikuti `set_clock_digital()`:
+
+```
+ H  H  H  ·  H  H  H  ·  :  ·  M  M  M  ·  M  M  M  ·  :  ·  S  S  S  ·  S  S  S
+ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+```
+
+Contoh hasil (`05:54:05`, x_block=2, x_space=2):
+
+```
+██  ██  ██      ██  ██  ██              ██  ██  ██      ██      ██              ██  ██  ██      ██  ██  ██
+```
+
+Ukuran blok menyesuaikan terminal (`choose_geometry`), dengan rasio
+blok : jarak = 1 : 1 seperti contoh `cfg/digital` peaclock.
 
 ---
 
@@ -54,33 +54,14 @@ python3 main.py --set-iqamat dzuhur 20 # atur jeda iqamat
 
 ---
 
-## File
+## Berkas
 
-| File | Keterangan |
-|------|-----------|
-| `dashboard.py` | Tampilan jam digital peaclock + countdown |
+| Berkas | Keterangan |
+|---|---|
+| `dashboard.py` | Dasbor + renderer jam peaclock digital |
 | `main.py` | Entry point CLI |
-| `config.py` / `config.json` | Konfigurasi judul, lokasi, jeda iqamat |
+| `config.py` / `config.json` | Judul, lokasi, jeda iqamat |
 | `api_client.py` | Klien MyQuran Open API (Bimas Islam Kemenag) |
 | `bimasislam_client.py` | Klien langsung situs Bimas Islam |
 
----
-
-## Catatan teknis — font peaclock
-
-Setiap glyph dibentuk dari grid **7 baris × 6 kolom** (3 blok × 2 kolom),
-mengikuti `block 2 1` + `ratio 2 1`:
-
-```
- ██████      segmen a (atas)
-██    ██     segmen f + b
-██    ██
- ██████      segmen g (tengah)
-██    ██     segmen e + c
-██    ██
- ██████      segmen d (bawah)
-```
-
-Digit dan titik dua (`:`) **sama-sama 6 kolom**, sehingga `HH:MM:SS` selalu
-rata tanpa pergeseran. Digit `1` memakai segmen `b`+`c` sehingga tetap berada
-di dalam kotak 6 kolom yang sama.
+Sumber data jadwal salat: Bimas Islam Kemenag RI.

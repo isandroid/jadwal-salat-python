@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 Dasbor Terminal Jadwal Salat & Jam Digital Masjid
-Jam berdetak bergaya peaclock  ->  `view digital`
-  block 2 1      (tiap segmen = blok 2 kolom x 1 baris)
-  padding 2 1    (jarak antar blok: 2 kolom, 1 baris)
-  ratio 2 1      (blok tampak persegi di terminal)
-Semua glyph (0-9 dan ":") lebarnya SAMA = 6 kolom, sehingga grid rata.
+Jam berdetak = peaclock `view digital` (persis, tanpa modifikasi).
+
+Sumber acuan (kode sumber peaclock):
+  src/peaclock/peaclock.hh  -> tabel _symbol (font 3 kolom x 5 baris) + template buffer
+  src/peaclock/peaclock.cc  -> set_clock_digital(), fill_digital(), draw_clock()
+  cfg/digital               -> block 2 1, padding 2 1, margin 2 1, ratio 2 1
 """
 
 import sys
@@ -33,7 +34,7 @@ DIM = "\033[2m"
 COLOR_TITLE = "\033[1;38;5;220m"
 COLOR_SUBTITLE = "\033[38;5;153m"
 COLOR_BORDER = "\033[38;5;34m"
-COLOR_CLOCK = "\033[1;38;5;48m"
+COLOR_CLOCK = "\033[1;38;5;79m"      # teal, sama nuansa dengan peaclock digital
 COLOR_COUNTDOWN = "\033[1;38;5;227m"
 
 
@@ -51,92 +52,99 @@ def visible_width(s: str) -> int:
 
 
 def center_line(text_with_ansi: str, total_cols: int) -> str:
-    """Menyelaraskan teks tepat di tengah layar berdasarkan lebar visual."""
+    """Selaraskan teks tepat di tengah berdasarkan lebar visual."""
     pad = max(0, (total_cols - visible_width(text_with_ansi)) // 2)
     return " " * pad + text_with_ansi
 
 
 # ==========================================
-# FONT DIGITAL PEACLOCK  (7-segment, block 2x1)
-#
-# Pola 7-segmen (tiap segmen = blok 2 kolom):
-#      a a a        -> "██████"
-#    f       b      -> "██  ██"
-#    f       b
-#      g g g        -> "██████"
-#    e       c      -> "██  ██"
-#    e       c
-#      d d d        -> "██████"
-#
-# Lebar tiap glyph = 6 kolom (3 blok x 2 kolom). Tanpa padding internal
-# supaya garis segmen menyambung rapi. Digit "1" memakai segmen b+c
-# sehingga tetap berada di dalam kotak 6 kolom yang sama.
+# PEACLOCK DIGITAL  (view digital)  -- PERSIS
 # ==========================================
 
-BLOCK = "██"
-BLANK = "  "
+# Tabel _symbol dari peaclock.hh (3 kolom x 5 baris, row-major)
+SYMBOLS = [
+    (1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1),  # 0
+    (0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0),  # 1
+    (1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1),  # 2
+    (1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1),  # 3
+    (1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1),  # 4
+    (1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1),  # 5
+    (1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1),  # 6
+    (1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1),  # 7
+    (1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1),  # 8
+    (1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1),  # 9
+]
+
+OFF, ON, COLON = 0, 1, 3
+
+# Kolom penempatan digit, dari set_clock_digital()
+DIGIT_COLS_SEC = [(0, 1, 2), (4, 5, 6), (10, 11, 12), (14, 15, 16), (20, 21, 22), (24, 25, 26)]
+DIGIT_COLS_NOSEC = [(0, 1, 2), (4, 5, 6), (10, 11, 12), (14, 15, 16)]
+COLON_COLS_SEC = (8, 18)
+COLON_COLS_NOSEC = (8,)
+NCOL_SEC, NCOL_NOSEC, NROW = 27, 17, 5
+
+BLOCK_CHAR = "\u2588"
 
 
-def _seg(segs: str, name: str) -> str:
-    """Kembalikan blok ON/OFF untuk satu segmen."""
-    return BLOCK if name in segs else BLANK
+def build_grid(hh: int, mm: int, ss: int, show_seconds: bool = True) -> List[List[int]]:
+    """Grid 5 baris x N kolom berisi nilai sel peaclock (0/1/3)."""
+    digits = [hh // 10, hh % 10, mm // 10, mm % 10]
+    cols, ncol, colon_cols = DIGIT_COLS_NOSEC, NCOL_NOSEC, COLON_COLS_NOSEC
+    if show_seconds:
+        digits += [ss // 10, ss % 10]
+        cols, ncol, colon_cols = DIGIT_COLS_SEC, NCOL_SEC, COLON_COLS_SEC
+
+    grid = [[OFF] * ncol for _ in range(NROW)]
+    for d, cset in zip(digits, cols):
+        sym = SYMBOLS[d]
+        for r in range(NROW):
+            for k, c in enumerate(cset):
+                grid[r][c] = sym[r * 3 + k]
+    for c in colon_cols:
+        grid[1][c] = COLON
+        grid[3][c] = COLON
+    return grid
 
 
-# Digit 0-9 sesuai pola 7-segmen standar
-SEGMENTS = {
-    "0": "abcdef",
-    "1": "bc",
-    "2": "abged",
-    "3": "abgcd",
-    "4": "fgbc",
-    "5": "afgcd",
-    "6": "afgcde",
-    "7": "abc",
-    "8": "abcdefg",
-    "9": "abfgcd",
-}
+# Kandidat geometri (blok_w, jarak_w, blok_h). Rasio blok:jarak = 1:1 seperti
+# cfg/digital peaclock (block 2 1 + padding 2 1) -> blok tampak persegi.
+CANDIDATES = [(6, 6, 3), (4, 4, 2), (2, 2, 1), (1, 1, 1), (1, 0, 1)]
 
 
-def _digit_rows(ch: str) -> List[str]:
-    """Bangun satu digit: 7 baris x 6 kolom."""
-    segs = SEGMENTS.get(ch, "")
-    return [
-        _seg(segs, "a") * 3,                              # baris 0 : a
-        _seg(segs, "f") + BLANK + _seg(segs, "b"),        # baris 1 : f b
-        _seg(segs, "f") + BLANK + _seg(segs, "b"),        # baris 2 : f b
-        _seg(segs, "g") * 3,                              # baris 3 : g
-        _seg(segs, "e") + BLANK + _seg(segs, "c"),        # baris 4 : e c
-        _seg(segs, "e") + BLANK + _seg(segs, "c"),        # baris 5 : e c
-        _seg(segs, "d") * 3,                              # baris 6 : d
-    ]
+def choose_geometry(cols: int, rows: int, reserved_rows: int = 0,
+                    ncol: int = NCOL_SEC):
+    """Pilih geometri terbesar yang muat di terminal (blok persegi + jarak persegi)."""
+    avail_w = max(1, cols - 2)
+    avail_h = max(1, rows - reserved_rows)
+    for bw, gw, bh in CANDIDATES:
+        width = ncol * bw + (ncol - 1) * gw
+        height = NROW * bh + (NROW - 1) * bh
+        if width <= avail_w and height <= avail_h:
+            return bw, bh, gw, bh
+    bw, gw, bh = CANDIDATES[-1]
+    return bw, bh, gw, bh
 
 
-def _colon_rows() -> List[str]:
-    """Titik dua. Lebarnya 6 kolom (sama dengan digit) supaya grid rata."""
-    return [
-        "      ",
-        "      ",
-        "  ██  ",
-        "      ",
-        "  ██  ",
-        "      ",
-        "      ",
-    ]
+def render_peaclock_digital(hh: int, mm: int, ss: int,
+                            show_seconds: bool = True,
+                            x_block: int = 2, y_block: int = 1,
+                            x_space: int = 2, y_space: int = 1) -> List[str]:
+    """Render jam peaclock digital -> daftar baris teks."""
+    grid = build_grid(hh, mm, ss, show_seconds)
+    on = BLOCK_CHAR * x_block
+    off = " " * x_block
+    gap = " " * x_space
 
-
-def render_peaclock_time(time_str: str) -> List[str]:
-    """Render jam gaya peaclock digital: 7 baris, tiap glyph 6 kolom + 2 jarak."""
-    rows = [""] * 7
-    for ch in time_str:
-        if ch == ":":
-            glyph = _colon_rows()
-        elif ch == " ":
-            glyph = ["      "] * 7
-        else:
-            glyph = _digit_rows(ch)
-        for i in range(7):
-            rows[i] += glyph[i] + "  "
-    return rows
+    lines: List[str] = []
+    for r in range(NROW):
+        row = gap.join(on if v in (ON, COLON) else off for v in grid[r])
+        for _ in range(y_block):
+            lines.append(row)
+        if r < NROW - 1:
+            for _ in range(y_space):
+                lines.append("")
+    return lines
 
 
 # ==========================================
@@ -270,26 +278,36 @@ class TerminalDashboard:
         masehi_str = f"{NAMA_HARI[today.weekday()]}, {today.day} {NAMA_BULAN[today.month]} {today.year}"
         tanggal_str = f"📅 {masehi_str}  |  🌙 {hitung_hijri(today)}"
 
-        out = []
+        out: List[str] = []
         out.append(center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols))
         out.append(center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols))
         out.append(center_line(f"{COLOR_SUBTITLE}{tanggal_str}{RESET}", cols))
         out.append("")
 
-        div_w = min(cols - 8, 104)
+        div_w = min(cols - 4, 106)
         div_pad = " " * max(0, (cols - div_w) // 2)
         out.append(f"{div_pad}{COLOR_BORDER}{'─' * div_w}{RESET}")
         out.append("")
 
-        # --- Jam berdetak (peaclock digital) ---
-        clock_rows = render_peaclock_time(now.strftime("%H:%M:%S"))
-        for r in clock_rows:
-            out.append(center_line(f"{COLOR_CLOCK}{BOLD}{r}{RESET}", cols))
+        # ---- Jam berdetak: peaclock view digital (persis) ----
+        reserved = len(out) + 4          # countdown + footer + margin
+        x_block, y_block, x_space, y_space = choose_geometry(cols, rows, reserved_rows=reserved)
+        clock_lines = render_peaclock_digital(
+            now.hour, now.minute, now.second,
+            show_seconds=True, x_block=x_block, y_block=y_block,
+            x_space=x_space, y_space=y_space,
+        )
+        clock_w = max((len(l) for l in clock_lines), default=0)
+        pad = " " * max(0, (cols - clock_w) // 2)
+        for line in clock_lines:
+            if line.strip():
+                out.append(f"{pad}{COLOR_CLOCK}{line}{RESET}")
+            else:
+                out.append("")
 
         out.append("")
-        out.append("")
 
-        # --- Countdown ---
+        # ---- Countdown ----
         next_prayer, remaining = self.get_upcoming_prayer(now)
         if next_prayer and remaining:
             t = int(remaining.total_seconds())
@@ -298,14 +316,13 @@ class TerminalDashboard:
         else:
             cd_text = "Memuat data jadwal salat..."
         out.append(center_line(f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}", cols))
-        out.append("")
 
-        # --- Footer ---
+        # ---- Footer ----
         out.append(center_line(
             f"{DIM}Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI{RESET}",
             cols))
 
-        top_margin = max(0, (rows - len(out)) // 3)
+        top_margin = max(0, (rows - len(out)) // 4)
         return "\n" * top_margin + "\n".join(out)
 
     def run(self):
