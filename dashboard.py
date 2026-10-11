@@ -2,6 +2,7 @@
 """
 Dasbor Terminal Jadwal Salat & Jam Digital Masjid
 Peaclock-style Digital Clock (view digital, block 2x1, padding 2x1, ratio 2:1)
+Exact replica of peaclock's `view digital` with `block 2 1`, `padding 2 1`, `ratio 2:1`
 """
 
 import os
@@ -23,7 +24,6 @@ from api_client import JadwalSalatAPI
 
 
 def visible_width(s: str) -> int:
-    """Menghitung lebar tampilan teks dengan memperhitungkan karakter lebar (emoji)."""
     clean = re.sub(r'\033\[[0-9;]*m', '', s)
     w = 0
     for ch in clean:
@@ -36,51 +36,17 @@ def visible_width(s: str) -> int:
 
 
 def center_line(text_with_ansi: str, total_cols: int) -> str:
-    """Menyelaraskan teks tepat di tengah layar berdasarkan lebar visual."""
     w = visible_width(text_with_ansi)
     pad = max(0, (total_cols - w) // 2)
     return " " * pad + text_with_ansi
 
 
 # ==========================================
-# PALET WARNA ANSI & GAYA
-# ==========================================
-RESET = "\033[0m"
-BOLD = "\033[1m"
-DIM = "\033[2m"
-
-COLOR_TITLE = "\033[1;38;5;220m"
-COLOR_SUBTITLE = "\033[38;5;153m"
-COLOR_BORDER = "\033[38;5;34m"
-COLOR_BORDER_DIM = "\033[38;5;240m"
-COLOR_CLOCK = "\033[1;38;5;48m"
-COLOR_CLOCK_SEC = "\033[38;5;120m"
-COLOR_COUNTDOWN = "\033[1;38;5;227m"
-COLOR_ACTIVE_CARD = "\033[1;38;5;226m"
-BG_ACTIVE_CARD = "\033[48;5;22m"
-COLOR_PASSED_CARD = "\033[38;5;244m"
-COLOR_NORMAL_CARD = "\033[38;5;159m"
-COLOR_IQAMAT_LABEL = "\033[38;5;214m"
-COLOR_IQAMAT_TIME = "\033[1;38;5;220m"
-
-IQAMAT_KEYS = {
-    "subuh": "subuh_iqamat",
-    "dzuhur": "dzuhur_iqamat",
-    "ashar": "ashar_iqamat",
-    "maghrib": "maghrib_iqamat",
-    "isya": "isya_iqamat"
-}
-
-
-# ==========================================
 # PEACLOCK EXACT - Digital View (block 2x1, padding 2x1, ratio 2:1)
-# Exact replica of peaclock's `view digital` with `block 2 1`, `padding 2 1`, `ratio 2 1`
+# Exact replica of peaclock's `view digital` with `block 2 1`, `padding 2 1`, `ratio 2:1`
 # Each segment = 2x1 block (██ = on, '  ' = off)
 # Digit: 7 rows x 6 chars (3 blocks x 2 chars per block)
 # ==========================================
-
-SEG_ON = '██'
-SEG_OFF = '  '
 
 SEGMENTS = {
     '0': 'abcefd',  '1': 'bc',      '2': 'abged',
@@ -89,8 +55,23 @@ SEGMENTS = {
     '9': 'abfgcd',
 }
 
+def _peaclock_digit(segs: str) -> list[str]:
+    """Exact peaclock digital digit: 7 rows x 6 chars (3 blocks x 2 chars)."""
+    return [
+        ('██' if 'a' in segs else '  ') * 3,
+        ('██' if 'f' in segs else '  ') + '  ' + ('██' if 'b' in segs else '  '),
+        ('██' if 'f' in segs else '  ') + '  ' + ('██' if 'b' in segs else '  '),
+        ('██' if 'g' in segs else '  ') * 3,
+        ('██' if 'e' in segs else '  ') + '  ' + ('██' if 'c' in segs else '  '),
+        ('██' if 'e' in segs else '  ') + '  ' + ('██' if 'c' in segs else '  '),
+        ('██' if 'd' in segs else '  ') * 3,
+    ]
+
+def _peaclock_colon() -> list[str]:
+    return ['   ', '   ', ' ● ', '   ', ' ● ', '   ', '   ']
+
 def _render_peaclock_time_main(time_str: str) -> list[str]:
-    """Exact peaclock digital style: 7 rows x (6 chars per digit + 2 spacing)."""
+    """Exact peaclock digital style: 7 rows."""
     rows = [''] * 7
     for ch in time_str:
         if ch == ':':
@@ -113,27 +94,7 @@ def _render_peaclock_time_main(time_str: str) -> list[str]:
     return rows
 
 def render_peaclock_time_main(time_str: str) -> list[str]:
-    """Exact peaclock digital main clock: 7 rows."""
-    rows = [''] * 7
-    for ch in time_str:
-        if ch == ':':
-            glyph = ['   ', '   ', ' ● ', '   ', ' ● ', '   ', '   ']
-        elif ch == ' ':
-            glyph = ['   '] * 7
-        else:
-            segs = SEGMENTS.get(ch, '')
-            glyph = [
-                ('██' if 'a' in segs else '  ') * 3,
-                ('██' if 'f' in segs else '  ') + '  ' + ('██' if 'b' in segs else '  '),
-                ('██' if 'f' in segs else '  ') + '  ' + ('██' if 'b' in segs else '  '),
-                ('██' if 'g' in segs else '  ') * 3,
-                ('██' if 'e' in segs else '  ') + '  ' + ('██' if 'c' in segs else '  '),
-                ('██' if 'e' in segs else '  ') + '  ' + ('██' if 'c' in segs else '  '),
-                ('██' if 'd' in segs else '  ') * 3,
-            ]
-        for i in range(7):
-            rows[i] += glyph[i] + '  '
-    return rows
+    return _render_peaclock_time_main(time_str)
 
 def render_peaclock_time_small(time_str: str) -> list[str]:
     rows = [''] * 5
@@ -210,6 +171,54 @@ def center_line(text_with_ansi: str, total_cols: int) -> str:
 
 # ==========================================
 # COLOR PALETTE
+# ==========================================
+RESET = "\033[0m"
+BOLD = "\033[1m"
+DIM = "\033[2m"
+COLOR_TITLE = "\033[1;38;5;220m"
+COLOR_SUBTITLE = "\033[38;5;153m"
+COLOR_BORDER = "\033[38;5;34m"
+COLOR_BORDER_DIM = "\033[38;5;240m"
+COLOR_CLOCK = "\033[1;38;5;48m"
+COLOR_CLOCK_SEC = "\033[38;5;120m"
+COLOR_COUNTDOWN = "\033[1;38;5;227m"
+COLOR_ACTIVE_CARD = "\033[1;38;5;226m"
+BG_ACTIVE_CARD = "\033[48;5;22m"
+COLOR_PASSED_CARD = "\033[38;5;244m"
+COLOR_NORMAL_CARD = "\033[38;5;159m"
+COLOR_IQAMAT_LABEL = "\033[38;5;214m"
+COLOR_IQAMAT_TIME = "\033[1;38;5;220m"
+
+IQAMAT_KEYS = {"subuh": "subuh_iqamat", "dzuhur": "dzuhur_iqamat", "ashar": "ashar_iqamat", "maghrib": "maghrib_iqamat", "isya": "isya_iqamat"}
+
+
+def hitung_waktu_iqamat(waktu_azan_str: str, jeda_menit: int) -> str:
+    if not waktu_azan_str or waktu_azan_str == "--:--": return "--:--"
+    try:
+        jam, menit = map(int, waktu_azan_str.split(":"))
+        total_menit = (jam * 60 + menit + int(jeda_menit)) % 1440
+        return f"{total_menit // 60:02d}:{total_menit % 60:02d}"
+    except Exception: return "--:--"
+
+
+def visible_width(s: str) -> int:
+    clean = re.sub(r'\033\[[0-9;]*m', '', s)
+    w = 0
+    for ch in clean:
+        ea = unicodedata.east_asian_width(ch)
+        if ea in ('W', 'F') or ord(ch) >= 0x1f000: w += 2
+        else: w += 1
+    return w
+
+
+def center_line(text_with_ansi: str, total_cols: int) -> str:
+    w = visible_width(text_with_ansi)
+    pad = max(0, (total_cols - w) // 2)
+    return " " * pad + text_with_ansi
+
+
+# ==========================================
+# COLOR PALETTE (duplicate for build_frame access)
 # ==========================================
 RESET = "\033[0m"
 BOLD = "\033[1m"
