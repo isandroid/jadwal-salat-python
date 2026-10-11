@@ -136,6 +136,20 @@ def render_peaclock_default(hh: int, mm: int, block_w: int = 2,
     return ["".join(on if v in (ON, COLON) else off for v in row) for row in grid]
 
 
+def render_peaclock_seconds(ss: int, block_w: int = 2) -> List[str]:
+    """Render 2 digit DETIK pada kolom milik bagian MM dari tata letak 17 kolom,
+    sehingga hasilnya tepat berada di bawah `mm` pada jam HH:MM."""
+    grid = [[OFF] * NCOL_NOSEC for _ in range(NROW)]
+    for d, cset in zip((ss // 10, ss % 10), DIGIT_COLS_NOSEC[2:4]):
+        sym = SYMBOLS[d % 10]
+        for r in range(NROW):
+            for k, c in enumerate(cset):
+                grid[r][c] = sym[r * 3 + k]
+    on = BLOCK_CHAR * block_w
+    off = " " * block_w
+    return ["".join(on if v in (ON, COLON) else off for v in row) for row in grid]
+
+
 PRAYER_ORDER = [
     ("SUBUH", "subuh"),
     ("DZUHUR", "dzuhur"),
@@ -255,7 +269,7 @@ def _fit(text: str, width: int) -> str:
 
 
 def build_cells(now: datetime, rows_data, grid_bw: int, colon_on: bool,
-                info_lines: List[str], row_lines, highlight: int = -1):
+                row_lines, highlight: int = -1):
     """Susun isi 4 x 3 sel. Tiap baris = (teks, kode warna)."""
     blank = " " * (NCOL_NOSEC * grid_bw)
 
@@ -279,9 +293,10 @@ def build_cells(now: datetime, rows_data, grid_bw: int, colon_on: bool,
               render_peaclock_default(now.hour, now.minute, grid_bw, colon_on)]
     cells[(0, 0)] = fit(clock, row_lines[0])
 
-    n_info = row_lines[1]
-    info = [("", "")] + [(t, COLOR_INFO) for t in info_lines]
-    cells[(1, 0)] = fit(info, n_info)
+    # baris kedua sel jam: DETIK, tepat di bawah bagian `mm`
+    detik = [("", "")] + [(t, COLOR_CLOCK) for t in
+                          render_peaclock_seconds(now.second, grid_bw)]
+    cells[(1, 0)] = fit(detik, row_lines[1])
 
     # SUBUH & DZUHUR di baris 1; ASHAR, MAGHRIB, ISYA' di baris 3
     placement = [(0, 1), (0, 2), (2, 0), (2, 1), (2, 2)]
@@ -610,10 +625,15 @@ class TerminalDashboard:
             judul_txt = judul_lebar
         judul_line = center_line(f"{COLOR_TITLE}{judul_txt}{RESET}", cols)
 
-        # Header menyusut otomatis bila terminal pendek (judul selalu tampil)
+        # Header: judul, lokasi, tanggal, lalu hitung mundur (menyusut bila sempit)
+        lokasi_line = center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols)
+        tanggal_line = center_line(f"{COLOR_SUBTITLE}{tanggal_str}{RESET}", cols)
+        cd_line = center_line(f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}", cols)
         header_candidates = [
-            [judul_line, center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols), ""],
-            [judul_line, center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols)],
+            [judul_line, lokasi_line, tanggal_line, cd_line, ""],
+            [judul_line, lokasi_line, tanggal_line, cd_line],
+            [judul_line, lokasi_line, tanggal_line],
+            [judul_line, lokasi_line],
             [judul_line],
             [],
         ]
@@ -645,15 +665,8 @@ class TerminalDashboard:
         if chosen:
             grid_bw, inner_w, grid_pad, row_lines = chosen
             colon_on = (now.second % 2 == 0)        # hanya kolon yang berdetak
-            info_lines = [
-                _clip(masehi_str, inner_w),
-                _clip(hijri_str, inner_w),
-                "",
-                _clip(f"⏳ MENUJU {next_prayer}" if next_prayer else "", inner_w),
-                _clip(cd_short, inner_w),
-            ]
             cells = build_cells(now, self.prayer_iqamat_entries(), grid_bw,
-                                colon_on, info_lines, row_lines,
+                                colon_on, row_lines,
                                 highlight=self.next_prayer_index(now))
             out.extend(render_grid(cells, cols, inner_w, grid_pad, row_lines))
         else:                                       # terminal sangat sempit

@@ -71,13 +71,16 @@ iqamat di bawah — **tanpa garis pemisah** di antaranya. Sel jam juga menyatu
 (kolom 1, baris 1–2).
 
 ```
+                    J A D W A L   S A L A T   M A S J I D   N A S R
+                        📍 Lokasi: KAB. BOGOR, JAWA BARAT (ID: 1204)
+                 📅 Minggu, 11 Oktober 2026  |  🌙 28 Rabi'ul Akhir 1448 H
+                     ⏳ Menuju Waktu MAGHRIB: 01 Jam 27 Menit 06 Detik
+
 ┌──────────────────────────┬──────────────────────────┬──────────────────────────┐
 │           JAM            │          SUBUH           │          DZUHUR          │
-│          14:44           │          04:18           │          11:43           │
-│   Minggu, 11 Okt 2026    │          IQAMAT          │          IQAMAT          │
-│   28 Rabi'ul Akhir 1448H │          04:33           │          12:13           │
-│      ⏳ MENUJU MAGHRIB    │                          │                          │
-│   03 Jam 04 Menit 22 Dtk │                          │                          │
+│          16:21           │          04:18           │          11:43           │
+│             53           │          IQAMAT          │          IQAMAT          │
+│                          │          04:33           │          12:13           │
 ├──────────────────────────┼──────────────────────────┼──────────────────────────┤
 │          ASHAR           │         MAGHRIB          │          ISYA'           │
 │          14:44           │          17:49           │          18:58           │
@@ -101,9 +104,11 @@ bertambah otomatis.
 
 Rincian:
 
-- Sel **JAM**: jam `HH:MM` **tanpa detik** — yang berdetak hanya **titik dua**
-  (menyala saat detik genap, padam saat detik ganjil), lalu tanggal Masehi,
-  Hijriah, dan hitung mundur ke waktu salat berikutnya.
+- **Judul, lokasi, tanggal, dan hitung mundur** berada di header (di atas grid).
+- Sel **JAM**: jam `HH:MM` tanpa detik — yang berdetak hanya **titik dua**
+  (menyala saat detik genap, padam saat detik ganjil). **Detik** ditampilkan
+  sebagai dua digit di baris kedua sel, **tepat di bawah bagian `mm`**
+  (kolom 10–16 dari tata letak 17 kolom).
 - **Iqamat** = waktu azan + jeda menit dari `config.json`
   (`subuh_iqamat`, `dzuhur_iqamat`, `ashar_iqamat`, `maghrib_iqamat`, `isya_iqamat`).
 - Bingkai memakai karakter garis: `┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`.
@@ -157,6 +162,16 @@ Catatan: ANSI tidak menyediakan pengubah ukuran font. Bila Pak Isa ingin nama
 waktu salat benar-benar *lebih tinggi* (bukan sekadar bold), itu harus digambar
 sebagai seni blok — konsekuensinya tiap sel bertambah tinggi sehingga layout
 3 × 4 tidak lagi muat di terminal 36 baris.
+
+### Detik di bawah `mm`
+
+Detik digambar dengan fungsi `render_peaclock_seconds(ss, block_w)`: grid 17 kolom
+yang sama, tetapi kedua digitnya diletakkan pada posisi kolom milik bagian `MM`
+(`DIGIT_COLS_NOSEC[2:4]` = kolom 10–12 dan 14–16). Hasilnya detik selalu rata
+persis di bawah `mm`, berapa pun ukuran blok yang dipakai.
+
+Terverifikasi: pada `block_w = 2`, detik menempati kolom 20–33 — sama persis
+dengan rentang blok `MM` (20–33).
 
 ### Penyesuaian otomatis
 
