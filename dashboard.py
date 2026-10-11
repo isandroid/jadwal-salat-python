@@ -540,7 +540,7 @@ class TerminalDashboard:
         ]
 
         def build_cell(label, key, is_active, is_past):
-            """Build a single grid cell with label + time (7 lines)."""
+            """Build a single grid cell with label + time (7 lines). ALL use LARGE format."""
             lines = []
 
             # Determine colors
@@ -560,27 +560,15 @@ class TerminalDashboard:
             # Label
             lines.append(f"{border_c}┃{text_c}{label.center(cell_w - 2)}{border_c}┃{RESET}")
 
-            # Special handling for JAM cell (key=None) - render big clock
-            if key is None:
-                # Render big clock (5 rows) - peaclock digital style
-                time_str = now.strftime("%H:%M:%S")
-                clock_lines = self.render_peaclock_time_main(time_str)
-                for line in clock_lines:
-                    pad_w = max(0, (cell_w - len(line)) // 2)
-                    lines.append(f"{border_c}┃{' ' * pad_w}{COLOR_CLOCK}{BOLD}{line}{' ' * (cell_w - 2 - pad_w - len(line))}{border_c}┃{RESET}")
-                # Add 2 empty rows to match 7-line height (2 label + 5 clock = 7)
-            else:
-                # Regular prayer cell - small clock font (4 rows) - peaclock digital style
-                waktu_val = "--:--"
+            # ALL cells use LARGE format (5 rows) - peaclock digital style
+            waktu_val = "--:--"
+            if key:
                 waktu_val = jadwal.get(key, "--:--")
-
-                small_waktu = self.render_peaclock_time_small(waktu_val)
-                small_w = len(small_waktu[0])
-                pad_w = max(0, (cell_w - 2 - small_w) // 2)
-
-                for i in range(4):
-                    line = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[i]}{' ' * (cell_w - 2 - small_w - pad_w)}{border_c}┃{RESET}"
-                    lines.append(line)
+            
+            clock_lines = self.render_peaclock_time_main(waktu_val)
+            for line in clock_lines:
+                pad_w = max(0, (cell_w - len(line)) // 2)
+                lines.append(f"{border_c}┃{' ' * pad_w}{text_c}{line}{' ' * (cell_w - 2 - pad_w - len(line))}{border_c}┃{RESET}")
 
             # Bottom border
             lines.append(f"{border_c}┗{'━' * (cell_w - 2)}┛{RESET}")
