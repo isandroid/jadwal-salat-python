@@ -109,59 +109,6 @@ def build_grid(hh: int, mm: int, ss: int, show_seconds: bool = True) -> List[Lis
         grid[3][c] = COLON
     return grid
 
-
-# Kandidat geometri: (blok_w, jarak_w, blok_h, jarak_h) dalam karakter/baris.
-# Rasio blok : jarak = 2 : 1 pada kedua arah, persis hasil pengukuran
-# screenshot resmi peaclock (dot 40 px, jarak 20 px). Blok tetap persegi
-# karena blok_w karakter = blok_h baris (sel karakter ~2x lebih tinggi).
-CANDIDATES = [
-    (8, 4, 4, 2),   # 320 x 28
-    (4, 2, 2, 1),   # 160 x 14  <- geometri persis peaclock resmi
-    (2, 1, 1, 1),   #  80 x  9  <- versi kecil, rasio horizontal tetap 2:1
-    (1, 1, 1, 1),   #  53 x  9  <- cadangan terminal sangat sempit
-]
-
-
-def choose_geometry(cols: int, rows: int, reserved_rows: int = 0,
-                    ncol: int = NCOL_SEC):
-    """Pilih geometri terbesar yang muat. Kembalikan (blok_w, blok_h, jarak_w, jarak_h)."""
-    avail_w = max(1, cols)
-    avail_h = max(1, rows - reserved_rows)
-    for bw, gw, bh, gh in CANDIDATES:
-        width = ncol * bw + (ncol - 1) * gw
-        height = NROW * bh + (NROW - 1) * gh
-        if width <= avail_w and height <= avail_h:
-            return bw, bh, gw, gh
-    bw, gw, bh, gh = CANDIDATES[-1]
-    return bw, bh, gw, gh
-
-
-def render_peaclock_digital(hh: int, mm: int, ss: int,
-                            show_seconds: bool = True,
-                            x_block: int = 4, y_block: int = 2,
-                            x_space: int = 2, y_space: int = 1) -> List[str]:
-    """Render jam peaclock digital -> daftar baris teks.
-
-    x_block/y_block = ukuran satu dot (karakter x baris).
-    x_space/y_space = jarak antar dot (karakter x baris).
-    Rasio resmi peaclock: blok : jarak = 2 : 1.
-    """
-    grid = build_grid(hh, mm, ss, show_seconds)
-    on = BLOCK_CHAR * x_block
-    off = " " * x_block
-    gap = " " * x_space
-
-    lines: List[str] = []
-    for r in range(NROW):
-        row = gap.join(on if v in (ON, COLON) else off for v in grid[r])
-        for _ in range(y_block):
-            lines.append(row)
-        if r < NROW - 1:
-            for _ in range(y_space):
-                lines.append("")
-    return lines
-
-
 # ==========================================
 # PEACLOCK `default`  (cfg/default: block 2 1, padding 0 0)
 # Font 3x5 yang SAMA dengan view digital, tetapi blok rapat tanpa jarak
@@ -192,43 +139,16 @@ PRAYER_ORDER = [
     ("ISYA'", "isya"),
 ]
 
-# pembagian kartu per baris untuk 5 waktu salat
-PRAYER_LAYOUTS = [(5,), (3, 2), (2, 2, 1), (1, 1, 1, 1, 1)]
-
-
-def choose_prayer_layout(cols: int, rows: int, sep: int = 4):
-    """Pilih (block_w, layout) terbesar yang muat.
-
-    Tiap baris kartu tinggi 6 baris (1 label + 5 baris waktu), 1 baris jarak
-    antar baris kartu. Tata letak <= 2 baris diutamakan; tata letak lebih
-    banyak baris dipakai hanya bila perlu (terminal sempit). Di dalam satu
-    kelompok, dipilih blok terbesar.
-    """
-    avail_w = max(1, cols - 4)
-    avail_h = max(6, rows - 18)
-    for group in ((0, 1), (2, 3)):          # <=2 baris dulu, lalu sisanya
-        best = None
-        for li in group:
-            layout = PRAYER_LAYOUTS[li]
-            if len(layout) * 6 + (len(layout) - 1) > avail_h:
-                continue
-            widest = max(layout)
-            for bw in (4, 3, 2, 1):
-                card_w = NCOL_NOSEC * bw
-                if widest * card_w + (widest - 1) * sep <= avail_w:
-                    if best is None or bw > best[0]:
-                        best = (bw, layout)
-                    break
-        if best:
-            return best
-    return None          # tidak ada tata letak kartu yang muat
-
-
 def build_prayer_compact(entries, cols: int, highlight: int = -1, sep: int = 3) -> List[str]:
     """Cadangan untuk terminal sempit: daftar teks ringkas, dibungkus sesuai lebar."""
     items = []
-    for i, (label, hhmm) in enumerate(entries):
-        text = f"{label} {hhmm or '--:--'}"
+    for i, entry in enumerate(entries):
+        label = entry[0]
+        azan = entry[1] if len(entry) > 1 else None
+        iq = entry[2] if len(entry) > 2 else None
+        text = f"{label} {azan or '--:--'}"
+        if iq:
+            text += f"/{iq}"
         color = COLOR_PRAYER_NEXT if i == highlight else COLOR_PRAYER
         items.append((text, color))
 
@@ -255,113 +175,133 @@ def _join_items(items, cols: int) -> str:
     colored = sep.join(f"{c}{t}{RESET}" for t, c in items)
     return " " * pad + colored
 
-
-def build_prayer_section(entries, block_w: int, layout, cols: int,
-                         highlight: int = -1, sep: int = 4) -> List[str]:
-    """entries: [(label, 'HH:MM'|None), ...] -> daftar baris siap tayang."""
-    card_w = NCOL_NOSEC * block_w
-
-    cards: List[List[str]] = []
-    for label, hhmm in entries:
-        lines = [label.center(card_w)]
-        if hhmm:
-            hh, mm = (int(x) for x in hhmm.split(":"))
-            lines += render_peaclock_default(hh, mm, block_w)
-        else:
-            lines += [" " * card_w] * 5
-        cards.append(lines)
-
-    out: List[str] = []
-    idx = 0
-    for ri, n in enumerate(layout):
-        row_cards = cards[idx:idx + n]
-        idx += n
-        total_w = n * card_w + (n - 1) * sep
-        left = " " * max(0, (cols - total_w) // 2)
-        gap = " " * sep
-        for r in range(6):
-            parts = []
-            for ci, card in enumerate(row_cards):
-                gi = idx - n + ci
-                seg = card[r] if r < len(card) else " " * card_w
-                if r == 0:
-                    parts.append(f"{COLOR_PRAYER_LABEL}{seg}{RESET}")
-                elif gi == highlight:
-                    parts.append(f"{COLOR_PRAYER_NEXT}{seg}{RESET}")
-                else:
-                    parts.append(f"{COLOR_PRAYER}{seg}{RESET}")
-            out.append(left + gap.join(parts))
-        if ri < len(layout) - 1:
-            out.append("")
-    return out
-
-
-
 # ==========================================
-# GRID 3 x 2  --  semua sel memakai font peaclock `default` (3x5 padat)
-#   baris 1 : JAM (berdetak) | SUBUH    | DZUHUR
-#   baris 2 : ASHAR          | MAGHRIB  | ISYA'
+# GRID 3 KOLOM x 4 BARIS BERBINGKAI
+#   baris 1 : JAM (berdetak)      | SUBUH   | DZUHUR     <- nama + waktu azan
+#   baris 2 : (info jam)          | IQAMAT  | IQAMAT     <- waktu iqamat
+#   baris 3 : ASHAR               | MAGHRIB | ISYA'      <- nama + waktu azan
+#   baris 4 : IQAMAT              | IQAMAT  | IQAMAT     <- waktu iqamat
+# Sel jam menempati kolom 1 baris 1-2 (menyatu). Semua waktu memakai font
+# peaclock `cfg/default` (3 x 5 padat), ukuran blok sama untuk semua sel.
 # ==========================================
 GRID_COLS = 3
-GRID_ROWS = 2
+GRID_ROWS = 4
+CELL_LINES = 6            # 1 baris label + 5 baris waktu
+
+BOX_V, BOX_H = "│", "─"
+BOX_TL, BOX_TM, BOX_TR = "┌", "┬", "┐"
+BOX_ML, BOX_MM, BOX_MR = "├", "┼", "┤"
+BOX_BL, BOX_BM, BOX_BR = "└", "┴", "┘"
 
 
-def choose_grid(cols: int):
-    """Pilih (block_w, sep) terbesar agar 3 kolom muat. None bila tidak muat."""
-    for bw in (4, 3, 2, 1):
-        for sep in (6, 4, 2):
-            if GRID_COLS * NCOL_NOSEC * bw + (GRID_COLS - 1) * sep <= cols - 2:
-                return bw, sep
+# Tinggi tiap baris grid. Varian ringkas membuang baris label "IQAMAT".
+ROW_LINES_FULL = [6, 6, 6, 6]
+ROW_LINES_COMPACT = [6, 5, 6, 5]
+
+
+def grid_height(row_lines) -> int:
+    return sum(row_lines) + (GRID_ROWS + 1)          # + garis bingkai
+
+
+def choose_grid(cols: int, rows: int, header_h: int, footer_h: int):
+    """Pilih (block_w, inner_w, pad, row_lines) terbesar yang muat lebar & tinggi.
+
+    Lebar total = GRID_COLS * (inner_w + 2*pad) + (GRID_COLS + 1)
+    """
+    avail_h = rows - header_h - footer_h
+    for row_lines in (ROW_LINES_FULL, ROW_LINES_COMPACT):
+        if grid_height(row_lines) > avail_h:
+            continue
+        for bw in (4, 3, 2, 1):
+            inner_w = NCOL_NOSEC * bw
+            for pad in (2, 1, 0):
+                if GRID_COLS * (inner_w + 2 * pad) + (GRID_COLS + 1) <= cols:
+                    return bw, inner_w, pad, row_lines
     return None
 
 
-def build_grid_cells(now: datetime, entries, block_w: int, colon_on: bool):
-    """Enam sel berurutan: jam, lalu 5 waktu salat."""
-    blank = " " * (NCOL_NOSEC * block_w)
-    cells = [("JAM", render_peaclock_default(now.hour, now.minute, block_w, colon_on))]
-    for label, hhmm in entries:
-        if hhmm:
-            hh, mm = (int(x) for x in hhmm.split(":"))
-            cells.append((label, render_peaclock_default(hh, mm, block_w)))
-        else:
-            cells.append((label, [blank] * 5))
+def _clip(text: str, width: int) -> str:
+    """Potong teks agar muat `width` kolom tampilan (emoji dihitung 2)."""
+    t = text
+    while t and visible_width(t) > width:
+        t = t[:-1]
+    return t
+
+
+def _fit(text: str, width: int) -> str:
+    """Potong lalu tengahkan berdasarkan lebar tampilan (emoji = 2 kolom)."""
+    t = _clip(text, width)
+    pad = max(0, width - visible_width(t))
+    left = pad // 2
+    return " " * left + t + " " * (pad - left)
+
+
+def build_cells(now: datetime, rows_data, grid_bw: int, colon_on: bool,
+                info_lines: List[str], row_lines):
+    """Susun isi 4 x 3 sel sesuai `row_lines` (baris label opsional pada iqamat)."""
+    blank = " " * (NCOL_NOSEC * grid_bw)
+
+    def time_of(hhmm):
+        if not hhmm:
+            return [blank] * 5
+        hh, mm = (int(x) for x in hhmm.split(":"))
+        return render_peaclock_default(hh, mm, grid_bw)
+
+    def fit(lines, n):
+        lines = list(lines)
+        while len(lines) < n:
+            lines.append(blank)
+        return lines[:n]
+
+    cells: Dict[Tuple[int, int], List[str]] = {}
+    # kolom 1, baris 1-2 : jam berdetak (baris 1-2 menyatu)
+    cells[(0, 0)] = fit(["JAM"] + render_peaclock_default(now.hour, now.minute,
+                                                         grid_bw, colon_on), row_lines[0])
+    n_info = row_lines[1]
+    info = list(info_lines) + [""] * n_info
+    cells[(1, 0)] = fit([""] + info[:max(0, n_info - 1)], n_info)
+
+    # SUBUH & DZUHUR di baris 1, ASHAR & MAGHRIB & ISYA' di baris 3
+    placement = [(0, 1), (0, 2), (2, 0), (2, 1), (2, 2)]
+    for (label, azan, iq), (r, c) in zip(rows_data, placement):
+        cells[(r, c)] = fit([label] + time_of(azan), row_lines[r])
+        iq_lines = ([("IQAMAT")] if row_lines[r + 1] == CELL_LINES else []) + time_of(iq)
+        cells[(r + 1, c)] = fit(iq_lines, row_lines[r + 1])
     return cells
 
 
-def render_grid(cells, block_w: int, cols: int,
-                highlight: int = -1, sep: int = 6) -> List[str]:
-    """Render sel menjadi grid 3 x 2: 1 baris label + 5 baris waktu per sel."""
-    card_w = NCOL_NOSEC * block_w
-    total_w = GRID_COLS * card_w + (GRID_COLS - 1) * sep
-    left = " " * max(0, (cols - total_w) // 2)
-    gap = " " * sep
+def render_grid(cells, cols: int, inner_w: int, pad: int = 2,
+                row_lines=None) -> List[str]:
+    """Gambar grid 3 x 4 berbingkai (kolom 1 baris 1-2 menyatu untuk jam)."""
+    if row_lines is None:
+        row_lines = ROW_LINES_FULL
+    cell_w = inner_w + 2 * pad
+
+    def content_line(r: int, li: int) -> str:
+        parts = []
+        for col in range(GRID_COLS):
+            line = cells.get((r, col), [])
+            text = line[li] if li < len(line) else ""
+            parts.append(" " * pad + _fit(text, inner_w) + " " * pad)
+        return BOX_V + BOX_V.join(parts) + BOX_V
+
+    def hline(left, mid, right):
+        return left + (BOX_H * cell_w + mid) * (GRID_COLS - 1) + BOX_H * cell_w + right
 
     out: List[str] = []
+    out.append(hline(BOX_TL, BOX_TM, BOX_TR))
     for r in range(GRID_ROWS):
-        row = cells[r * GRID_COLS:(r + 1) * GRID_COLS]
-        labels = []
-        for ci, (label, _) in enumerate(row):
-            labels.append(f"{COLOR_PRAYER_LABEL}{label.center(card_w)}{RESET}")
-        out.append(left + gap.join(labels))
-
-        for li in range(5):
-            parts = []
-            for ci, (_, lines) in enumerate(row):
-                gi = r * GRID_COLS + ci
-                if gi == 0:
-                    color = COLOR_CLOCK                 # jam berdetak
-                elif gi == highlight:
-                    color = COLOR_PRAYER_NEXT           # waktu salat berikutnya
-                else:
-                    color = COLOR_PRAYER
-                seg = lines[li] if li < len(lines) else " " * card_w
-                parts.append(f"{color}{seg}{RESET}")
-            out.append(left + gap.join(parts))
-
+        for li in range(row_lines[r]):
+            out.append(content_line(r, li))
         if r < GRID_ROWS - 1:
-            out.append("")
+            if r == 0:      # kolom 1 baris 1-2 menyatu (jam) -> tanpa garis mendatar
+                out.append(BOX_V + " " * cell_w + BOX_ML
+                           + (BOX_H * cell_w + BOX_MM) * (GRID_COLS - 2)
+                           + BOX_H * cell_w + BOX_MR)
+            else:
+                out.append(hline(BOX_ML, BOX_MM, BOX_MR))
+    out.append(hline(BOX_BL, BOX_BM, BOX_BR))
     return out
-
 
 
 # ==========================================
@@ -492,6 +432,18 @@ class TerminalDashboard:
             out.append((label, val if val else None))
         return out
 
+    def prayer_iqamat_entries(self):
+        """[(label, 'HH:MM' azan|None, 'HH:MM' iqamat|None), ...] untuk 5 waktu salat."""
+        jadwal = (self.jadwal_cache or {}).get("jadwal") or {}
+        out = []
+        for label, key in PRAYER_ORDER:
+            jk = IQAMAT_KEYS.get(key)
+            azan = jadwal.get(key) or None
+            delay = self.config.get(jk) if jk else None
+            iq = hitung_waktu_iqamat(azan, delay) if (azan and delay is not None) else None
+            out.append((label, azan, iq))
+        return out
+
     def next_prayer_index(self, now_dt: datetime) -> int:
         """Indeks kartu waktu salat berikutnya (untuk disorot), -1 bila tidak ada."""
         jadwal = (self.jadwal_cache or {}).get("jadwal") or {}
@@ -528,42 +480,51 @@ class TerminalDashboard:
         if visible_width(lokasi_str) > cols - 2:
             lokasi_str = str(lokasi_nama)
 
-        out: List[str] = []
-        out.append(center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols))
-        out.append(center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols))
-        out.append(center_line(f"{COLOR_SUBTITLE}{tanggal_str}{RESET}", cols))
-        out.append("")
-
-        div_w = min(cols - 4, 106)
-        div_pad = " " * max(0, (cols - div_w) // 2)
-        out.append(f"{div_pad}{COLOR_BORDER}{'─' * div_w}{RESET}")
-        out.append("")
-
-        # ---- Grid 3 x 2: jam berdetak + waktu salat (font peaclock `default`) ----
-        entries = self.prayer_entries()
-        chosen = choose_grid(cols)
-        if chosen:
-            grid_bw, grid_sep = chosen
-            colon_on = (now.second % 2 == 0)        # hanya kolon yang berdetak
-            cells = build_grid_cells(now, entries, grid_bw, colon_on)
-            hi = self.next_prayer_index(now)
-            out.extend(render_grid(cells, grid_bw, cols,
-                                   highlight=(hi + 1 if hi >= 0 else -1),
-                                   sep=grid_sep))
-        else:                                       # terminal sangat sempit
-            out.extend(build_prayer_compact(entries, cols,
-                                            highlight=self.next_prayer_index(now)))
-        out.append("")
-
         # ---- Countdown ----
         next_prayer, remaining = self.get_upcoming_prayer(now)
         if next_prayer and remaining:
             t = int(remaining.total_seconds())
-            cd_text = (f"⏳ Menuju Waktu {next_prayer}: "
-                       f"{t // 3600:02d} Jam {(t % 3600) // 60:02d} Menit {t % 60:02d} Detik")
+            cd_short = f"{t // 3600:02d} Jam {(t % 3600) // 60:02d} Menit {t % 60:02d} Detik"
+            cd_text = f"⏳ Menuju Waktu {next_prayer}: {cd_short}"
         else:
+            cd_short = ""
             cd_text = "Memuat data jadwal salat..."
-        out.append(center_line(f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}", cols))
+
+        # Header menyusut otomatis bila terminal pendek (judul selalu tampil)
+        header_candidates = [
+            [center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols),
+             center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols),
+             ""],
+            [center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols),
+             center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols)],
+            [center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols)],
+            [],
+        ]
+        out: List[str] = []
+        chosen = None
+        for hdr in header_candidates:
+            chosen = choose_grid(cols, rows, len(hdr), 2)
+            if chosen:
+                out.extend(hdr)
+                break
+        if chosen:
+            grid_bw, inner_w, grid_pad, row_lines = chosen
+            colon_on = (now.second % 2 == 0)        # hanya kolon yang berdetak
+            info_lines = [
+                _clip(masehi_str, inner_w),
+                _clip(hijri_str, inner_w),
+                "",
+                _clip(f"⏳ MENUJU {next_prayer}" if next_prayer else "", inner_w),
+                _clip(cd_short, inner_w),
+            ]
+            cells = build_cells(now, self.prayer_iqamat_entries(), grid_bw,
+                                colon_on, info_lines, row_lines)
+            out.extend(render_grid(cells, cols, inner_w, grid_pad, row_lines))
+        else:                                       # terminal sangat sempit
+            out.extend(build_prayer_compact(self.prayer_iqamat_entries(), cols,
+                                            highlight=self.next_prayer_index(now)))
+            out.append(center_line(f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}", cols))
+        out.append("")
 
         # ---- Footer ----
         footer = "Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI"

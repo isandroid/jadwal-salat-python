@@ -61,51 +61,74 @@ minimal 160 kolom.
 
 ---
 
-## Tampilan: grid 3 × 2, font peaclock `cfg/default` (3 × 5 padat)
+## Tampilan: grid 3 kolom × 4 baris berbingkai
 
-Seluruh isi dasbor memakai **satu font yang sama**: peaclock `cfg/default`
+Semua waktu memakai **satu font yang sama**: peaclock `cfg/default`
 (tabel `_symbol` 3 × 5, `padding 0 0` → blok rapat membentuk karakter padat).
 
 ```
-baris 1 :  JAM (berdetak)      |  SUBUH          |  DZUHUR
-baris 2 :  ASHAR               |  MAGHRIB        |  ISYA'
+┌──────────────────────────┬──────────────────────────┬──────────────────────────┐
+│           JAM            │          SUBUH           │          DZUHUR          │
+│          14:32           │          04:18           │          11:43           │
+│                          ├──────────────────────────┼──────────────────────────┤
+│   Minggu, 11 Okt 2026    │          IQAMAT          │          IQAMAT          │
+│   28 Rabi'ul Akhir 1448H │          04:33           │          12:13           │
+│      ⏳ MENUJU ASHAR      │                          │                          │
+│   00 Jam 03 Menit 27 Dtk │                          │                          │
+├──────────────────────────┼──────────────────────────┼──────────────────────────┤
+│          ASHAR           │         MAGHRIB          │          ISYA'           │
+│          14:44           │          17:49           │          18:58           │
+├──────────────────────────┼──────────────────────────┼──────────────────────────┤
+│          IQAMAT          │          IQAMAT          │          IQAMAT          │
+│          15:04           │          18:04           │          19:13           │
+└──────────────────────────┴──────────────────────────┴──────────────────────────┘
 ```
 
-- **JAM** menampilkan `HH:MM` **tanpa detik**; yang berdetak hanya **titik dua**
-  (menyala saat detik genap, padam saat detik ganjil).
-- Enam sel berukuran **persis sama**.
-- Waktu salat berikutnya disorot dengan warna berbeda.
-- Ukuran blok dipilih otomatis agar 3 kolom selalu muat:
+- **Baris 1** : jam berdetak + azan Subuh + azan Dzuhur.
+- **Baris 2** : info jam + iqamat Subuh + iqamat Dzuhur.
+- **Baris 3** : azan Ashar + azan Maghrib + azan Isya'.
+- **Baris 4** : iqamat Ashar + iqamat Maghrib + iqamat Isya'.
 
-| Lebar terminal | Blok | Jarak antar sel |
-|---|---|---|
-| ≥ 218 kolom | 4 | 6 |
-| 214 – 217 | 4 | 4 |
-| 210 – 213 | 4 | 2 |
-| 167 – 209 | 3 | 6 |
-| 163 – 166 | 3 | 4 |
-| 159 – 162 | 3 | 2 |
-| 116 – 158 | 2 | 6 |
-| 112 – 115 | 2 | 4 |
-| 108 – 111 | 2 | 2 |
-| 65 – 107 | 1 | 6 |
-| 61 – 64 | 1 | 4 |
-| 57 – 60 | 1 | 2 |
-| < 57 kolom | — | daftar teks ringkas |
+Rincian:
 
-Batang pemisah di bawah header juga otomatis menyusut bila terminal sempit.
+- Sel **JAM** menempati kolom 1 baris 1–2 (menyatu, tanpa garis pemisah di dalamnya)
+  berisi jam `HH:MM` **tanpa detik**; yang berdetak hanya **titik dua**
+  (menyala saat detik genap, padam saat detik ganjil), lalu tanggal Masehi,
+  Hijriah, dan hitung mundur ke waktu salat berikutnya.
+- **Iqamat** = waktu azan + jeda menit dari `config.json`
+  (`subuh_iqamat`, `dzuhur_iqamat`, `ashar_iqamat`, `maghrib_iqamat`, `isya_iqamat`).
+- Semua sel berukuran **sama**; bingkai kotak antar waktu salat memakai
+  karakter garis (`┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ ─ │`).
 
-### Rincian setelan `cfg/default` peaclock
+### Penyesuaian otomatis
 
-| Setelan | Nilai | Akibat |
-|---|---|---|
-| `block 2 1` | blok 2 kolom × 1 baris | tiap blok = karakter blok penuh `█` |
-| `padding 0 0` | **tanpa jarak** | blok rapat → karakter **3 × 5 padat** |
-| `set seconds off` | tanpa detik | hanya `HH:MM` |
-| `view digital` | tabel `_symbol` 3 × 5 | sama untuk jam maupun waktu salat |
+Ukuran blok, padding sel, dan tinggi baris dipilih agar selalu muat
+(lebar **dan** tinggi):
 
-Lebar satu sel `HH:MM` = `17 × block_w` karakter, tinggi 5 baris
-(ditambah 1 baris label per sel).
+| Kondisi terminal | Yang dilakukan |
+|---|---|
+| lebar ≥ 216 | blok 4, padding 2 |
+| lebar ≥ 162 | blok 3, padding 2 |
+| lebar ≥ 109 | blok 2, padding 2 |
+| lebar < 109 | blok 1, padding 2 → 1 → 0 |
+| tinggi pas-pasan | baris iqamat kehilangan label "IQAMAT" (hemat 2 baris) |
+| makin pendek | header menyusut: judul+lokasi+kosong → judul+lokasi → judul |
+| terlalu kecil | beralih ke daftar teks ringkas (`SUBUH 04:18/04:33 ...`) |
+
+### Asal-usul font
+
+| Berkas sumber peaclock | Yang diambil |
+|---|---|
+| `src/peaclock/peaclock.hh` | tabel `_symbol` — font piksel **3 kolom × 5 baris** |
+| `src/peaclock/peaclock.cc` | `set_clock_digital()`, `fill_digital()`, `draw_clock()` |
+| `cfg/default` | `block 2 1`, `padding 0 0`, `set seconds off` |
+
+Peta kolom dari `set_clock_digital()` (dipakai untuk `HH:MM`):
+
+```
+idx:  0  1  2 | 3 | 4  5  6 | 7 | 8 | 9 | 10 11 12 | 13 | 14 15 16
+      H  H  H |   | h  h  h |   | : |   |  M  M  M |    |  m   m  m
+```
 
 ---
 
