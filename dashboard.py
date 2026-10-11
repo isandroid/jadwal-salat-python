@@ -2,6 +2,9 @@
 """
 Dasbor Terminal Jadwal Salat & Jam Digital Masjid
 Dioptimalkan untuk resolusi layar 1366x768 (atau terminal modern).
+Layout 3x2 (peaclock style):
+  Baris 1: [JAM BERDETAK] [SUBUH] [DZUHUR]
+  Baris 2: [ASHAR] [MAGHRIB] [ISYA]
 """
 
 import os
@@ -21,6 +24,7 @@ from typing import Dict, Any, Optional, Tuple, List
 from config import load_config
 from api_client import JadwalSalatAPI
 
+
 def visible_width(s: str) -> int:
     """Menghitung lebar tampilan teks dengan memperhitungkan karakter lebar (emoji)."""
     clean = re.sub(r'\033\[[0-9;]*m', '', s)
@@ -33,11 +37,13 @@ def visible_width(s: str) -> int:
             w += 1
     return w
 
+
 def center_line(text_with_ansi: str, total_cols: int) -> str:
     """Menyelaraskan teks tepat di tengah layar berdasarkan lebar visual."""
     w = visible_width(text_with_ansi)
     pad = max(0, (total_cols - w) // 2)
     return " " * pad + text_with_ansi
+
 
 # ==========================================
 # PALET WARNA ANSI & GAYA
@@ -69,6 +75,7 @@ IQAMAT_KEYS = {
     "isya": "isya_iqamat"
 }
 
+
 def hitung_waktu_iqamat(waktu_azan_str: str, jeda_menit: int) -> str:
     """Menghitung waktu iqamat = waktu azan + jeda menit."""
     if not waktu_azan_str or waktu_azan_str == "--:--":
@@ -79,6 +86,7 @@ def hitung_waktu_iqamat(waktu_azan_str: str, jeda_menit: int) -> str:
         return f"{total_menit // 60:02d}:{total_menit % 60:02d}"
     except Exception:
         return "--:--"
+
 
 # ==========================================
 # FONT DIGITAL 5-BARIS BESAR (HH:MM:SS) - untuk jam utama
@@ -170,6 +178,7 @@ DIGITS_5 = {
     ]
 }
 
+
 # ==========================================
 # FONT DIGITAL 4-BARIS KECIL (HH:MM) - untuk kartu salat/iqamat
 # ~1/4 ukuran DIGITS_5, 6 karakter lebar per digit (semua konsisten)
@@ -250,6 +259,7 @@ DIGITS_3 = {
     ]
 }
 
+
 NAMA_HARI = {
     0: "Senin", 1: "Selasa", 2: "Rabu", 3: "Kamis",
     4: "Jumat", 5: "Sabtu", 6: "Minggu"
@@ -266,6 +276,7 @@ BULAN_HIJRI = [
     'Jumadil Awwal', 'Jumadil Akhir', 'Rajab', "Sya'ban",
     'Ramadhan', 'Syawwal', "Dzulqa'dah", "Dzulhijjah"
 ]
+
 
 def hitung_hijri(dt: date) -> str:
     """Mengonversi tanggal Masehi ke kalender Hijriah (Algoritma Tabular Islam)."""
@@ -293,6 +304,7 @@ def hitung_hijri(dt: date) -> str:
 
     bulan_str = BULAN_HIJRI[h_month] if 1 <= h_month <= 12 else ''
     return f"{int(h_day)} {bulan_str} {int(h_year)} H"
+
 
 class TerminalDashboard:
     def __init__(self):
@@ -413,33 +425,161 @@ class TerminalDashboard:
 
         output = []
 
-        # 1. HEADER (Tanpa border)
+        # 1. HEADER
         output.append(center_line(f"{COLOR_TITLE}{BOLD}{judul.upper()}{RESET}", cols))
         output.append(center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols))
         output.append(center_line(f"{COLOR_SUBTITLE}{tanggal_str}{RESET}", cols))
         output.append("")
 
-        # Baris pemisah di antara tanggal dan jam digital
+        # Baris pemisah
         div_w = min(cols - 8, 104)
         div_pad = " " * max(0, (cols - div_w) // 2)
         output.append(f"{div_pad}{COLOR_BORDER}{'─' * div_w}{RESET}")
         output.append("")
 
-        # 2. JAM DIGITAL BESAR (5 BARIS)
+        # ============================================================
+        # LAYOUT 3x2 (peaclock style)
+        # Baris 1: [JAM BERDETAK] [SUBUH] [DZUHUR]
+        # Baris 2: [ASHAR] [MAGHRIB] [ISYA]
+        # ============================================================
+
+        # Cell dimensions
+        gap = 4
+        available_w = cols - 4
+        cell_w = max(22, (available_w - gap * 2) // 3)
+        cell_h = 7  # top border + label + 4 waktu + bottom border
+
+        # Data
+        jadwal = self.jadwal_cache.get("jadwal", {}) if self.jadwal_cache else {}
+        next_prayer, remaining = self.get_upcoming_prayer(now)
+
+        # Grid labels: 2 rows x 3 cols
+        grid_labels = [
+            [("JAM", None), ("SUBUH", "subuh"), ("DZUHUR", "dzuhur")],
+            [("ASHAR", "ashar"), ("MAGHRIB", "maghrib"), ("ISYA'", "isya")]
+        ]
+
+        def build_cell(label, key, is_active, is_past):
+            """Build a single grid cell with label + time (7 lines)."""
+            lines = []
+
+            # Determine colors
+            if is_active:
+                border_c = COLOR_ACTIVE_CARD
+                text_c = COLOR_ACTIVE_CARD + BOLD
+            elif is_past:
+                border_c = COLOR_BORDER_DIM
+                text_c = COLOR_PASSED_CARD
+            else:
+                border_c = COLOR_BORDER
+                text_c = COLOR_NORMAL_CARD
+
+            # Top border
+            lines = [f"{border_c}┏{'━' * (cell_w - 2)}┓{RESET}"]
+
+            # Label
+            lines.append(f"{border_c}┃{text_c}{label.center(cell_w - 2)}{border_c}┃{RESET}")
+
+            # Special handling for JAM cell (key=None) - render big clock
+            if key is None:
+                # Render big clock (5 rows)
+                time_str = now.strftime("%H:%M:%S")
+                clock_lines = self.render_clock_lines(time_str)
+                for line in clock_lines:
+                    pad_w = max(0, (cell_w - len(line)) // 2)
+                    lines.append(f"{border_c}┃{' ' * pad_w}{COLOR_CLOCK}{BOLD}{line}{' ' * (cell_w - 2 - pad_w - len(line))}{border_c}┃{RESET}")
+                # Add 2 empty rows to match 7-line height (2 label + 5 clock = 7)
+            else:
+                # Regular prayer cell - small clock font (4 rows)
+                waktu_val = "--:--"
+                waktu_val = jadwal.get(key, "--:--")
+
+                small_waktu = self.render_small_clock_lines(waktu_val)
+                small_w = len(small_waktu[0])
+                pad_w = max(0, (cell_w - 2 - small_w) // 2)
+
+                for i in range(4):
+                    line = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[i]}{' ' * (cell_w - 2 - small_w - pad_w)}{border_c}┃{RESET}"
+                    lines.append(line)
+
+            # Bottom border
+            lines.append(f"{border_c}┗{'━' * (cell_w - 2)}┛{RESET}")
+
+            return lines
+
+        def is_prayer_past(key):
+            if not key or key not in jadwal:
+                return False
+            waktu_val = jadwal[key]
+            if waktu_val == "--:--":
+                return False
+            try:
+                j_h, j_m = map(int, waktu_val.split(":"))
+                j_dt = datetime(today.year, today.month, today.day, j_h, j_m)
+                return now > j_dt
+            except:
+                return False
+
+        # Cell dimensions
+        gap = 4
+        available_w = cols - 4
+        cell_w = max(22, (available_w - gap * 2) // 3)
+        cell_h = 7
+
+        # Grid labels: 2 rows x 3 cols
+        grid_labels = [
+            [("JAM", None), ("SUBUH", "subuh"), ("DZUHUR", "dzuhur")],
+            [("ASHAR", "ashar"), ("MAGHRIB", "maghrib"), ("ISYA'", "isya")]
+        ]
+
+        # Build all cells
+        cells = [[], []]
+        for row_idx in range(2):
+            for col_idx in range(3):
+                label, key = grid_labels[row_idx][col_idx]
+                is_active = (key == next_prayer)
+                is_past = False
+                if key:
+                    waktu_val = jadwal.get(key, "--:--")
+                    if waktu_val != "--:--":
+                        try:
+                            j_h, j_m = map(int, waktu_val.split(":"))
+                            j_dt = datetime(today.year, today.month, today.day, j_h, j_m)
+                            is_past = now > j_dt
+                        except:
+                            pass
+                # Jam (key=None) tidak pernah past/active
+                if key is None:
+                    is_active = False
+                    is_past = False
+                else:
+                    is_active = (key == next_prayer)
+
+                cells[row_idx].append(build_cell(label, key, is_active, is_past))
+
+        # Render clock first (top-left area)
         time_str = now.strftime("%H:%M:%S")
         clock_lines = self.render_clock_lines(time_str)
         clock_w = len(clock_lines[0])
-        clock_pad = " " * ((cols - clock_w) // 2)
-
+        clock_pad = " " * 2
         for line in clock_lines:
             output.append(f"{clock_pad}{COLOR_CLOCK}{BOLD}{line}{RESET}")
-        
-        output.append("")
-        wib_label = "— WAKTU INDONESIA BARAT (WIB) —"
-        output.append(f"{' ' * ((cols - len(wib_label)) // 2)}{COLOR_CLOCK_SEC}{wib_label}{RESET}")
         output.append("")
 
-        # 3. COUNTDOWN MENUJU SALAT BERIKUTNYA
+        # Render grid: 2 rows x 3 cols
+        gap = 4
+        for row_idx in range(2):
+            for line_idx in range(cell_h):
+                row_parts = []
+                for col_idx in range(3):
+                    row_parts.append(cells[row_idx][col_idx][line_idx])
+                gap_str = " " * gap
+                row_line = gap_str.join(row_parts)
+                pad = " " * ((cols - len(row_line)) // 2)
+                output.append(f"{pad}{row_line}")
+            output.append("")
+
+        # COUNTDOWN
         next_prayer, remaining = self.get_upcoming_prayer(now)
         if next_prayer and remaining:
             tot_sec = int(remaining.total_seconds())
@@ -457,190 +597,12 @@ class TerminalDashboard:
         output.append(f"{' ' * max(0, (cols - cd_len) // 2)}{countdown_line}")
         output.append("")
 
-        # 4. KARTU JADWAL SALAT
-        urutan_keys = [
-            ("IMSAK", "imsak"),
-            ("SUBUH", "subuh"),
-            ("TERBIT", "terbit"),
-            ("DHUHA", "dhuha"),
-            ("DZUHUR", "dzuhur"),
-            ("ASHAR", "ashar"),
-            ("MAGHRIB", "maghrib"),
-            ("ISYA'", "isya")
-        ]
-
-        jadwal = self.jadwal_cache.get("jadwal", {}) if self.jadwal_cache else {}
-
-        # Kartu yang di-HIDE (Subuh, Terbit, Dhuha) - tampilkan sebagai ruang kosong
-        # (nilai tersimpan di self.HIDDEN_KEYS)
-        #
-        # Ukuran kartu diperbesar (34 kolom) supaya waktu salat mudah dilihat
-        # dari kejauhan. Komposisi dibagi 3 kartu atas + 2 kartu bawah (keduanya
-        # di tengah-tengah), dan lebar total dihitung dari kartu yang benar-benar
-        # merender (bukan dari urutan_keys lengkap 8).
-
-        CARD_W = 34
-        CARD_GAP = "  "
-
-        def chunk_total_w(count):
-            return count * CARD_W + (count - 1) * len(CARD_GAP)
-
-        def can_fit_single_row(count):
-            return cols >= chunk_total_w(count) + 20
-
-        def render_cards_chunk(keys):
-            card_lines = ['', '', '', '', '', '', '', '', '', '', '', '']  # 12 lines: top + label + 4 waktu + iqamat label + 4 iqamat + bot
-            rendered = 0
-            for label, key in keys:
-                # Kartu tersembunyi: biarkan baris kosong, tidak dihitung
-                if key in self.HIDDEN_KEYS:
-                    continue
-                rendered += 1
-                waktu_val = jadwal.get(key, "--:--")
-                is_active = (label == next_prayer)
-
-                # Hitung waktu iqamat jika termasuk 5 waktu salat fardhu
-                iqamat_cfg_key = IQAMAT_KEYS.get(key)
-                if iqamat_cfg_key and iqamat_cfg_key in self.config:
-                    jeda = self.config.get(iqamat_cfg_key, 15)
-                    iqamat_lbl = "IQAMAT"
-                    iqamat_val = hitung_waktu_iqamat(waktu_val, jeda)
-                else:
-                    iqamat_lbl = " "
-                    iqamat_val = " "
-
-                # Cek apakah waktu azan sudah lewat
-                is_past = False
-                if waktu_val != "--:--":
-                    try:
-                        j_h, j_m = map(int, waktu_val.split(":"))
-                        j_dt = datetime(today.year, today.month, today.day, j_h, j_m)
-                        if now > j_dt and not is_active:
-                            is_past = True
-                    except Exception:
-                        pass
-
-                if is_active:
-                    border_c = COLOR_ACTIVE_CARD
-                    text_c = COLOR_ACTIVE_CARD + BOLD
-                    iqamat_lbl_c = COLOR_ACTIVE_CARD
-                    iqamat_val_c = COLOR_ACTIVE_CARD + BOLD
-                    top = f"{border_c}┏{'━' * (CARD_W - 2)}┓{RESET}"
-                    l1 = f"{border_c}┃{text_c}{label.center(CARD_W - 2)}{border_c}┃{RESET}"
-                    # Render waktu salat dengan font 4-baris tebal
-                    small_waktu = self.render_small_clock_lines(waktu_val)
-                    small_w = len(small_waktu[0])
-                    pad_w = (CARD_W - 2 - small_w) // 2
-                    l2 = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[0]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}┃{RESET}"
-                    l3 = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[1]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}┃{RESET}"
-                    l4 = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[2]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}┃{RESET}"
-                    l5 = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[3]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}┃{RESET}"
-                    # IQAMAT label
-                    l6 = f"{border_c}┃{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}┃{RESET}"
-                    # Render waktu iqamat dengan font 4-baris
-                    small_iqamat = self.render_small_clock_lines(iqamat_val)
-                    small_iq_w = len(small_iqamat[0])
-                    pad_iq = (CARD_W - 2 - small_iq_w) // 2
-                    l7 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
-                    l8 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
-                    l9 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
-                    l10 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[3]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
-                    bot = f"{border_c}┗{'━' * (CARD_W - 2)}┛{RESET}"
-                elif is_past:
-                    border_c = COLOR_BORDER_DIM
-                    text_c = COLOR_PASSED_CARD
-                    iqamat_lbl_c = COLOR_BORDER_DIM
-                    iqamat_val_c = COLOR_PASSED_CARD
-                    top = f"{border_c}╭{'─' * (CARD_W - 2)}╮{RESET}"
-                    l1 = f"{border_c}│{text_c}{label.center(CARD_W - 2)}{border_c}│{RESET}"
-                    small_waktu = self.render_small_clock_lines(waktu_val)
-                    small_w = len(small_waktu[0])
-                    pad_w = (CARD_W - 2 - small_w) // 2
-                    l2 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[0]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l3 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[1]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l4 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[2]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l5 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[3]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l6 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}│{RESET}"
-                    small_iqamat = self.render_small_clock_lines(iqamat_val)
-                    small_iq_w = len(small_iqamat[0])
-                    pad_iq = (CARD_W - 2 - small_iq_w) // 2
-                    l7 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l8 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l9 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l10 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[3]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    bot = f"{border_c}╰{'─' * (CARD_W - 2)}╯{RESET}"
-                else:
-                    border_c = COLOR_BORDER
-                    text_c = COLOR_NORMAL_CARD
-                    iqamat_lbl_c = COLOR_IQAMAT_LABEL
-                    iqamat_val_c = COLOR_IQAMAT_TIME
-                    top = f"{border_c}╭{'─' * (CARD_W - 2)}╮{RESET}"
-                    l1 = f"{border_c}│{text_c}{BOLD}{label.center(CARD_W - 2)}{border_c}│{RESET}"
-                    small_waktu = self.render_small_clock_lines(waktu_val)
-                    small_w = len(small_waktu[0])
-                    pad_w = (CARD_W - 2 - small_w) // 2
-                    l2 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[0]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l3 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[1]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l4 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[2]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l5 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[3]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l6 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}│{RESET}"
-                    small_iqamat = self.render_small_clock_lines(iqamat_val)
-                    small_iq_w = len(small_iqamat[0])
-                    pad_iq = (CARD_W - 2 - small_iq_w) // 2
-                    l7 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l8 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l9 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l10 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[3]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    bot = f"{border_c}╰{'─' * (CARD_W - 2)}╯{RESET}"
-
-                gap = CARD_GAP
-                card_lines[0] += top + gap
-                card_lines[1] += l1 + gap
-                card_lines[2] += l2 + gap
-                card_lines[3] += l3 + gap
-                card_lines[4] += l4 + gap
-                card_lines[5] += l5 + gap
-                card_lines[6] += l6 + gap
-                card_lines[7] += l7 + gap
-                card_lines[8] += l8 + gap
-                card_lines[9] += l9 + gap
-                card_lines[10] += l10 + gap
-                card_lines[11] += bot + gap
-
-            # Lebar total hanya menghitung kartu yang benar-benar di-render
-            total_w = chunk_total_w(rendered)
-            cards_pad = " " * ((cols - total_w) // 2)
-
-            res_lines = []
-            for cl in card_lines:
-                res_lines.append(f"{cards_pad}{cl}")
-            return res_lines, total_w
-
-        visible = [k for k in urutan_keys if k[1] not in self.HIDDEN_KEYS]
-
-        if can_fit_single_row(len(visible)):
-            # Single row: all 5 cards side by side
-            output.extend(render_cards_chunk(urutan_keys)[0])
-        else:
-            # 2 baris: 3 kartu atas, 2 kartu bawah (masing-masing di tengah)
-            half = (len(visible) + 1) // 2
-            top_keys = visible[:half]
-            bot_keys = visible[half:]
-
-            if top_keys:
-                output.extend(render_cards_chunk(top_keys)[0])
-            if bot_keys:
-                output.append("")
-                output.extend(render_cards_chunk(bot_keys)[0])
-
-        output.append("")
-
-        # 5. FOOTER INFORMASI
-        footer_info = "Tekan [q] atau [Ctrl+C] untuk keluar  \u2022  Sumber Data: Bimas Islam Kemenag RI"
+        # FOOTER
+        footer_info = "Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI"
         footer_pad = " " * ((cols - len(footer_info)) // 2)
         output.append(f"{footer_pad}{DIM}{footer_info}{RESET}")
 
-        # Tambahkan padding atas jika terminal cukup tinggi (misal pada 1366x768)
+        # Top margin
         content_height = len(output)
         top_margin = max(0, (rows - content_height) // 3)
 
