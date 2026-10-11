@@ -23,6 +23,7 @@ from typing import Dict, Any, Optional, Tuple, List
 
 from config import load_config
 from api_client import JadwalSalatAPI
+import cache
 
 # ==========================================
 # PALET WARNA ANSI
@@ -418,6 +419,9 @@ class TerminalDashboard:
         self.config = load_config()
         self.jadwal_cache: Optional[Dict[str, Any]] = None
         self.last_fetch_date: Optional[date] = None
+        self.sumber_data = ""        # internet | cache | offline | kosong
+        self.pesan_error = ""
+        cache.init()
         self.old_terminal_settings = None
 
     def setup_terminal(self):
@@ -436,18 +440,78 @@ class TerminalDashboard:
         sys.stdout.write(RESET)
         sys.stdout.flush()
 
+    def _unduh_bulan(self, kota_id: str, tahun: int, bulan: int) -> bool:
+        """Unduh satu bulan penuh dari API lalu simpan ke SQLite."""
+        try:
+            data = self.api.get_jadwal_bulanan(kota_id, tahun, bulan)
+            if data and data.get("jadwal"):
+                cache.simpan_bulan(kota_id, data)
+                return True
+        except Exception as exc:
+            self.pesan_error = str(exc)
+        return False
+
+    def _unduh_hari(self, kota_id: str, tanggal: date) -> bool:
+        """Unduh satu hari (cadangan bila data bulanan belum memuat tanggal itu)."""
+        try:
+            data = self.api.get_jadwal_harian(kota_id, tanggal)
+            if data and data.get("jadwal"):
+                cache.simpan_bulan(kota_id, {
+                    "lokasi": data.get("lokasi", ""),
+                    "daerah": data.get("daerah", ""),
+                    "jadwal": [data["jadwal"]],
+                })
+                return True
+        except Exception as exc:
+            self.pesan_error = str(exc)
+        return False
+
     def fetch_jadwal(self, force: bool = False):
+        """Ambil jadwal hari ini: pakai SQLite bila ada, unduh hanya bila perlu.
+
+        Internet hanya dihubungi sekali per bulan (saat bulan berjalan belum
+        lengkap tersimpan). Bila internet mati, jadwal tetap tampil dari SQLite.
+        """
         today = date.today()
         if not force and self.jadwal_cache and self.last_fetch_date == today:
             return
-        kota_id = self.config.get("lokasi_id", "1204")
-        try:
-            res = self.api.get_jadwal_harian(kota_id, today)
-            if res and "jadwal" in res:
-                self.jadwal_cache = res
-                self.last_fetch_date = today
-        except Exception:
-            pass
+        kota_id = str(self.config.get("lokasi_id", "1204"))
+        iso = today.isoformat()
+        self.pesan_error = ""
+        diunduh = False
+
+        # 1. unduh bulan berjalan hanya bila belum lengkap di SQLite
+        if not cache.punya_bulan(kota_id, today.year, today.month):
+            diunduh = self._unduh_bulan(kota_id, today.year, today.month) or diunduh
+
+        lokal = cache.get_hari(kota_id, iso)
+
+        # 2. tanggal belum ada (mis. awal bulan) -> coba unduh harian
+        if lokal is None:
+            diunduh = self._unduh_hari(kota_id, today) or diunduh
+            lokal = cache.get_hari(kota_id, iso)
+
+        # 3. siapkan bulan depan pada 5 hari terakhir bulan ini
+        if today.day >= 25:
+            nxt = (today.replace(day=28) + timedelta(days=4)).replace(day=1)
+            if not cache.punya_bulan(kota_id, nxt.year, nxt.month):
+                self._unduh_bulan(kota_id, nxt.year, nxt.month)
+
+        if lokal:
+            self.jadwal_cache = lokal
+            self.last_fetch_date = today
+            self.sumber_data = "internet" if diunduh else "cache"
+            return
+
+        # 4. internet gagal & tanggal belum tersimpan -> pakai data terakhir
+        fallback = cache.get_terakhir(kota_id)
+        if fallback:
+            self.jadwal_cache = fallback
+            self.last_fetch_date = today
+            self.sumber_data = "offline"
+            return
+
+        self.sumber_data = "kosong"
 
     def get_upcoming_prayer(self, now_dt: datetime) -> Tuple[Optional[str], Optional[timedelta]]:
         if not self.jadwal_cache or "jadwal" not in self.jadwal_cache:
@@ -599,10 +663,20 @@ class TerminalDashboard:
         if footer_gap:
             out.append("")
 
-        # ---- Footer ----
+        # ---- Footer (sebutkan sumber & status penyimpanan) ----
+        status = {
+            "internet": "diperbarui dari internet",
+            "cache": "dari penyimpanan lokal (SQLite)",
+            "offline": "offline — pakai data tersimpan",
+            "kosong": "belum ada data",
+        }.get(self.sumber_data, "")
         footer = "Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI"
+        if status:
+            footer += f"  •  {status}"
         if visible_width(footer) > cols - 2:
             footer = "Tekan [q] untuk keluar  •  Bimas Islam Kemenag RI"
+            if status:
+                footer += f"  •  {status}"
         if visible_width(footer) > cols - 2:
             footer = "Tekan [q] untuk keluar"
         out.append(center_line(f"{DIM}{footer}{RESET}", cols))

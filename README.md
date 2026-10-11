@@ -191,6 +191,39 @@ idx:  0  1  2 | 3 | 4  5  6 | 7 | 8 | 9 | 10 11 12 | 13 | 14 15 16
 
 ---
 
+## Penyimpanan lokal (SQLite) — tidak perlu terus konek internet
+
+Jadwal salat **disimpan di SQLite** (`jadwal_salat.db`, dibuat otomatis) lewat
+modul `cache.py`. Internet hanya dihubungi **sekali per bulan**.
+
+| Tabel | Isi |
+|---|---|
+| `jadwal` | `kota_id`, `tanggal`, `tanggal_teks`, `imsak`, `subuh`, `terbit`, `dhuha`, `dzuhur`, `ashar`, `maghrib`, `isya`, `lokasi`, `daerah`, `diunduh` |
+
+Cara kerja saat aplikasi dijalankan:
+
+1. Cek SQLite — bila **bulan berjalan sudah lengkap** (≥ 28 hari), tidak ada
+   koneksi internet sama sekali.
+2. Bila belum lengkap, unduh **satu bulan penuh** (`get_jadwal_bulanan`) lalu
+   simpan — cukup **satu permintaan** untuk seluruh bulan.
+3. Bila tanggal hari ini belum ada (mis. awal bulan), unduh harian sebagai
+   cadangan.
+4. Pada 5 hari terakhir bulan, bulan **berikutnya** ikut disiapkan agar
+   pergantian bulan tidak terputus.
+5. Bila internet mati, jadwal tetap tampil dari SQLite (mode **offline**).
+
+Footer dasbor menampilkan statusnya: *diperbarui dari internet* ·
+*dari penyimpanan lokal (SQLite)* · *offline — pakai data tersimpan*.
+
+### Perintah terkait
+
+```bash
+python3 main.py --data     # lihat isi penyimpanan (berkas, jumlah hari, rentang, terakhir diunduh)
+python3 main.py --cli      # jadwal teks — juga bekerja offline
+```
+
+`jadwal_salat.db` tidak ikut di-commit (lihat `.gitignore`).
+
 ## Menjalankan
 
 ```bash

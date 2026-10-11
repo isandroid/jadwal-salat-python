@@ -3,6 +3,7 @@ from datetime import date
 from api_client import JadwalSalatAPI
 from config import load_config, save_config, CONFIG_FILE_PATH
 from dashboard import TerminalDashboard, hitung_waktu_iqamat
+import cache as cache_mod
 
 def tampilkan_jadwal(jadwal_item: dict, cfg: dict):
     print("-------------------------------------------------------")
@@ -44,6 +45,7 @@ def print_help():
   python3 main.py --set-judul <teks>-> Ubah judul dasbor di config.json
   python3 main.py --set-iqamat <salat> <menit> -> Atur jeda iqamat (subuh/dzuhur/ashar/maghrib/isya)
   python3 main.py --config          -> Tampilkan konfigurasi saat ini
+  python3 main.py --data            -> Tampilkan isi penyimpanan lokal (SQLite)
 """)
 
 def main():
@@ -61,6 +63,23 @@ def main():
         if arg == "--dashboard":
             dashboard = TerminalDashboard()
             dashboard.run()
+            return
+
+        if arg in ("--data", "--cache"):
+            kota_id = str(cfg.get("lokasi_id", "1204"))
+            info = cache_mod.info(kota_id)
+            print("=== Penyimpanan Jadwal Salat (SQLite) ===")
+            print(f"Berkas      : {info['berkas']}")
+            print(f"Kota        : {cfg.get('lokasi_nama')} (ID {kota_id})")
+            print(f"Jumlah hari : {info['jumlah_hari']} hari")
+            print(f"Rentang     : {info['dari'] or '-'}  s.d.  {info['sampai'] or '-'}")
+            print(f"Terakhir    : diunduh {info['diunduh'] or '-'}")
+            if info["jumlah_hari"]:
+                print("Catatan     : jadwal dapat ditampilkan tanpa internet selama")
+                print("              rentang tanggal di atas masih tersedia.")
+            else:
+                print("Catatan     : belum ada data. Jalankan 'python3 main.py' sekali")
+                print("              dengan internet untuk mengunduh satu bulan penuh.")
             return
 
         if arg == "--config":
@@ -144,16 +163,26 @@ def main():
             kota_id = kota_terpilih["id"]
             nama_lokasi = kota_terpilih["lokasi"]
 
-        print(f"[+] Mengambil jadwal salat hari ini ({today.strftime('%Y-%m-%d')})...\n")
-        data_jadwal = api.get_jadwal_harian(kota_id, today)
-        
+        print(f"[+] Jadwal salat hari ini ({today.strftime('%Y-%m-%d')})...\n")
+        dash = TerminalDashboard()
+        dash.config["lokasi_id"] = kota_id
+        dash.fetch_jadwal(force=True)
+        data_jadwal = dash.jadwal_cache or {}
+        asal = {"internet": "diperbarui dari internet",
+                "cache": "dari penyimpanan lokal (SQLite)",
+                "offline": "offline — memakai data tersimpan",
+                "kosong": "belum ada data"}.get(dash.sumber_data, "")
+        if asal:
+            print(f"[i] Sumber: Bimas Islam Kemenag RI — {asal}\n")
+
         if "jadwal" in data_jadwal:
             jadwal = data_jadwal["jadwal"]
             daerah = data_jadwal.get("daerah", "")
             print(f"JADWAL SALAT: {nama_lokasi}{' - ' + daerah if daerah else ''}")
             tampilkan_jadwal(jadwal, cfg)
         else:
-            print("[-] Gagal memuat jadwal.")
+            print("[-] Gagal memuat jadwal: belum ada data tersimpan dan internet")
+            print("    tidak dapat dihubungi. Jalankan sekali dengan internet.")
     else:
         # Default tanpa argumen: Jalankan dasbor terminal interaktif
         dashboard = TerminalDashboard()
