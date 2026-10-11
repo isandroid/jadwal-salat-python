@@ -518,125 +518,48 @@ class TerminalDashboard:
         output.append("")
 
         # ============================================================
-        # LAYOUT 3x2 (peaclock style)
-        # Baris 1: [JAM BERDETAK] [SUBUH] [DZUHUR]
-        # Baris 2: [ASHAR] [MAGHRIB] [ISYA]
+        # JAM BERDETAK SAJA (peaclock digital main)
         # ============================================================
 
-        # Cell dimensions
-        gap = 4
-        available_w = cols - 4
-        cell_w = max(22, (available_w - gap * 2) // 3)
-        cell_h = 7  # top border + label + 4 waktu + bottom border
+        time_str = now.strftime("%H:%M:%S")
+        clock_lines = self.render_peaclock_time_main(time_str)
+        
+        for line in clock_lines:
+            pad = " " * ((cols - len(line)) // 2)
+            output.append(f"{pad}{COLOR_CLOCK}{BOLD}{line}{RESET}")
 
-        # Data
-        jadwal = self.jadwal_cache.get("jadwal", {}) if self.jadwal_cache else {}
+        output.append("")
+        output.append("")
+
+        # COUNTDOWN
         next_prayer, remaining = self.get_upcoming_prayer(now)
+        if next_prayer and remaining:
+            tot_sec = int(remaining.total_seconds())
+            hours = tot_sec // 3600
+            mins = (tot_sec % 3600) // 60
+            secs = tot_sec % 60
+            cd_text = f"⏳ Menuju Waktu {next_prayer}: {hours:02d} Jam {mins:02d} Menit {secs:02d} Detik"
+            countdown_line = f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}"
+            cd_len = len(cd_text)
+        else:
+            cd_text = "Memuat data jadwal salat..."
+            countdown_line = f"{DIM}{cd_text}{RESET}"
+            cd_len = len(cd_text)
 
-        # Grid labels: 2 rows x 3 cols
-        grid_labels = [
-            [("JAM", None), ("SUBUH", "subuh"), ("DZUHUR", "dzuhur")],
-            [("ASHAR", "ashar"), ("MAGHRIB", "maghrib"), ("ISYA'", "isya")]
-        ]
+        output.append(f"{' ' * max(0, (cols - cd_len) // 2)}{countdown_line}")
+        output.append("")
 
-        def build_cell(label, key, is_active, is_past):
-            """Build a single grid cell with label + time (7 lines). ALL use LARGE format."""
-            lines = []
+        # FOOTER
+        footer_info = "Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI"
+        footer_pad = " " * ((cols - len(footer_info)) // 2)
+        output.append(f"{footer_pad}{DIM}{footer_info}{RESET}")
 
-            # Determine colors
-            if is_active:
-                border_c = COLOR_ACTIVE_CARD
-                text_c = COLOR_ACTIVE_CARD + BOLD
-            elif is_past:
-                border_c = COLOR_BORDER_DIM
-                text_c = COLOR_PASSED_CARD
-            else:
-                border_c = COLOR_BORDER
-                text_c = COLOR_NORMAL_CARD
+        # Top margin
+        content_height = len(output)
+        top_margin = max(0, (rows - content_height) // 3)
 
-            # Top border
-            lines = [f"{border_c}┏{'━' * (cell_w - 2)}┓{RESET}"]
-
-            # Label
-            lines.append(f"{border_c}┃{text_c}{label.center(cell_w - 2)}{border_c}┃{RESET}")
-
-            # ALL cells use LARGE format (5 rows) - peaclock digital style
-            waktu_val = "--:--"
-            if key:
-                waktu_val = jadwal.get(key, "--:--")
-            
-            clock_lines = self.render_peaclock_time_main(waktu_val)
-            for line in clock_lines:
-                pad_w = max(0, (cell_w - len(line)) // 2)
-                lines.append(f"{border_c}┃{' ' * pad_w}{text_c}{line}{' ' * (cell_w - 2 - pad_w - len(line))}{border_c}┃{RESET}")
-
-            # Bottom border
-            lines.append(f"{border_c}┗{'━' * (cell_w - 2)}┛{RESET}")
-
-            return lines
-
-        def is_prayer_past(key):
-            if not key or key not in jadwal:
-                return False
-            waktu_val = jadwal[key]
-            if waktu_val == "--:--":
-                return False
-            try:
-                j_h, j_m = map(int, waktu_val.split(":"))
-                j_dt = datetime(today.year, today.month, today.day, j_h, j_m)
-                return now > j_dt
-            except:
-                return False
-
-        # Cell dimensions
-        gap = 4
-        available_w = cols - 4
-        cell_w = max(22, (available_w - gap * 2) // 3)
-        cell_h = 7
-
-        # Grid labels: 2 rows x 3 cols
-        grid_labels = [
-            [("JAM", None), ("SUBUH", "subuh"), ("DZUHUR", "dzuhur")],
-            [("ASHAR", "ashar"), ("MAGHRIB", "maghrib"), ("ISYA'", "isya")]
-        ]
-
-        # Build all cells
-        cells = [[], []]
-        for row_idx in range(2):
-            for col_idx in range(3):
-                label, key = grid_labels[row_idx][col_idx]
-                is_active = (key == next_prayer)
-                is_past = False
-                if key:
-                    waktu_val = jadwal.get(key, "--:--")
-                    if waktu_val != "--:--":
-                        try:
-                            j_h, j_m = map(int, waktu_val.split(":"))
-                            j_dt = datetime(today.year, today.month, today.day, j_h, j_m)
-                            is_past = now > j_dt
-                        except:
-                            pass
-                # Jam (key=None) tidak pernah past/active
-                if key is None:
-                    is_active = False
-                    is_past = False
-                else:
-                    is_active = (key == next_prayer)
-
-                cells[row_idx].append(build_cell(label, key, is_active, is_past))
-
-        # Render grid: 2 rows x 3 cols
-        gap = 4
-        for row_idx in range(2):
-            for line_idx in range(cell_h):
-                row_parts = []
-                for col_idx in range(3):
-                    row_parts.append(cells[row_idx][col_idx][line_idx])
-                gap_str = " " * gap
-                row_line = gap_str.join(row_parts)
-                pad = " " * ((cols - len(row_line)) // 2)
-                output.append(f"{pad}{row_line}")
-            output.append("")
+        full_screen = "\n" * top_margin + "\n".join(output)
+        return full_screen
 
         # COUNTDOWN
         next_prayer, remaining = self.get_upcoming_prayer(now)
