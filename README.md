@@ -61,6 +61,32 @@ minimal 160 kolom.
 
 ---
 
+## Waktu-waktu salat — peaclock `cfg/default` (font 3×5 padat)
+
+Waktu salat ditampilkan dengan **font 3 × 5 yang sama** seperti view digital,
+tetapi memakai setelan `cfg/default` peaclock:
+
+| Setelan | Nilai | Akibat |
+|---|---|---|
+| `block 2 1` | blok 2 kolom × 1 baris | tiap blok = 1 karakter blok penuh (`█`) |
+| `padding 0 0` | **tanpa jarak** | blok rapat → terbentuk **karakter 3 × 5 padat** |
+| `set seconds off` | tanpa detik | hanya `HH:MM` |
+| `view digital` | font `_symbol` 3 × 5 | sama dengan jam besar |
+
+Tata letak kartu (5 waktu) dipilih otomatis agar muat:
+
+| Lebar terminal | Blok | Tata letak |
+|---|---|---|
+| ≥ 236 kolom | 4 | 3 + 2 |
+| 178 – 235 | 3 | 3 + 2 |
+| 96 – 177 | 2 | 3 + 2 |
+| 63 – 95 | 1 | 3 + 2 |
+| < 63 | — | daftar teks ringkas |
+
+Waktu salat yang akan datang disorot dengan warna berbeda.
+
+---
+
 ## Menjalankan
 
 ```bash
@@ -79,7 +105,7 @@ python3 main.py --set-iqamat dzuhur 20 # atur jeda iqamat
 
 | Berkas | Keterangan |
 |---|---|
-| `dashboard.py` | Dasbor + renderer jam peaclock digital |
+| `dashboard.py` | Dasbor + renderer jam peaclock digital & `cfg/default` |
 | `main.py` | Entry point CLI |
 | `config.py` / `config.json` | Judul, lokasi, jeda iqamat |
 | `api_client.py` | Klien MyQuran Open API (Bimas Islam Kemenag) |
