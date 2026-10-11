@@ -171,69 +171,82 @@ DIGITS_5 = {
 }
 
 # ==========================================
-# FONT DIGITAL 3-BARIS KECIL (HH:MM) - untuk kartu salat/iqamat
-# ~1/4 ukuran DIGITS_5, 4 karakter lebar per digit (semua konsisten 4 chars)
+# FONT DIGITAL 4-BARIS KECIL (HH:MM) - untuk kartu salat/iqamat
+# ~1/4 ukuran DIGITS_5, 6 karakter lebar per digit (semua konsisten)
+# Menggunakan full-block █ untuk keterbacaan maksimal dari kejauhan
 # ==========================================
 DIGITS_3 = {
     '0': [
-        ' ██ ',
-        '█  █',
-        ' ██ '
+        '██████',
+        '██  ██',
+        '██  ██',
+        '██████'
     ],
     '1': [
-        '  █ ',
-        ' ██ ',
-        '  █ '
+        '  ████',
+        '██████',
+        '  ████',
+        '  ████'
     ],
     '2': [
-        ' ██ ',
-        '  █ ',
-        ' ██ '
+        '██████',
+        '    ██',
+        '██████',
+        '██████'
     ],
     '3': [
-        ' ██ ',
-        ' ██ ',
-        ' ██ '
+        '██████',
+        '    ██',
+        '██████',
+        '██████'
     ],
     '4': [
-        '█  █',
-        '████',
-        '   █'
+        '██  ██',
+        '██  ██',
+        '██████',
+        '    ██'
     ],
     '5': [
-        ' ███',
-        ' ██ ',
-        '███ '
+        '██████',
+        '██    ',
+        '██████',
+        '██████'
     ],
     '6': [
-        ' ██ ',
-        ' ███',
-        ' ██ '
+        '██████',
+        '██    ',
+        '██████',
+        '██  ██'
     ],
     '7': [
-        '████',
-        '  █ ',
-        '  █ '
+        '████████',
+        '    ██',
+        '   ██',
+        '  ██'
     ],
     '8': [
-        ' ██ ',
-        ' ██ ',
-        ' ██ '
+        '██████',
+        '██  ██',
+        '██████',
+        '██  ██'
     ],
     '9': [
-        ' ██ ',
-        ' ███',
-        '  █ '
+        '██████',
+        '██  ██',
+        '██████',
+        '    ██'
     ],
     ':': [
-        '  █ ',
-        '    ',
-        '  █ '
+        '      ',
+        ' ████ ',
+        '      ',
+        ' ████ '
     ],
     ' ': [
-        '    ',
-        '    ',
-        '    '
+        '      ',
+        '      ',
+        '      ',
+        '      '
     ]
 }
 
@@ -373,11 +386,11 @@ class TerminalDashboard:
         return lines
 
     def render_small_clock_lines(self, time_str: str) -> List[str]:
-        """Merender jam digital 3 baris (untuk kartu salat/iqamat)."""
-        lines = ['', '', '']
+        """Merender jam digital 4 baris (untuk kartu salat/iqamat)."""
+        lines = ['', '', '', '']
         for ch in time_str:
             glyph = DIGITS_3.get(ch, DIGITS_3[' '])
-            for i in range(3):
+            for i in range(4):
                 lines[i] += glyph[i]
         return lines
 
@@ -476,7 +489,7 @@ class TerminalDashboard:
             return cols >= chunk_total_w(count) + 20
 
         def render_cards_chunk(keys):
-            card_lines = ['', '', '', '', '', '', '', '', '', '']  # 10 lines: top + label + 3 waktu + iqamat label + 3 iqamat + bot
+            card_lines = ['', '', '', '', '', '', '', '', '', '', '', '']  # 12 lines: top + label + 4 waktu + iqamat label + 4 iqamat + bot
             rendered = 0
             for label, key in keys:
                 # Kartu tersembunyi: biarkan baris kosong, tidak dihitung
@@ -514,22 +527,24 @@ class TerminalDashboard:
                     iqamat_val_c = COLOR_ACTIVE_CARD + BOLD
                     top = f"{border_c}┏{'━' * (CARD_W - 2)}┓{RESET}"
                     l1 = f"{border_c}┃{text_c}{label.center(CARD_W - 2)}{border_c}┃{RESET}"
-                    # Render waktu salat dengan font 3-baris tebal
+                    # Render waktu salat dengan font 4-baris tebal
                     small_waktu = self.render_small_clock_lines(waktu_val)
                     small_w = len(small_waktu[0])
                     pad_w = (CARD_W - 2 - small_w) // 2
                     l2 = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[0]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}┃{RESET}"
                     l3 = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[1]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}┃{RESET}"
                     l4 = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[2]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}┃{RESET}"
+                    l5 = f"{border_c}┃{' ' * pad_w}{text_c}{small_waktu[3]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}┃{RESET}"
                     # IQAMAT label
-                    l5 = f"{border_c}┃{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}┃{RESET}"
-                    # Render waktu iqamat dengan font 3-baris
+                    l6 = f"{border_c}┃{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}┃{RESET}"
+                    # Render waktu iqamat dengan font 4-baris
                     small_iqamat = self.render_small_clock_lines(iqamat_val)
                     small_iq_w = len(small_iqamat[0])
                     pad_iq = (CARD_W - 2 - small_iq_w) // 2
-                    l6 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
-                    l7 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
-                    l8 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
+                    l7 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
+                    l8 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
+                    l9 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
+                    l10 = f"{border_c}┃{' ' * pad_iq}{iqamat_val_c}{small_iqamat[3]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}┃{RESET}"
                     bot = f"{border_c}┗{'━' * (CARD_W - 2)}┛{RESET}"
                 elif is_past:
                     border_c = COLOR_BORDER_DIM
@@ -544,13 +559,15 @@ class TerminalDashboard:
                     l2 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[0]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
                     l3 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[1]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
                     l4 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[2]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l5 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l5 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[3]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
+                    l6 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}│{RESET}"
                     small_iqamat = self.render_small_clock_lines(iqamat_val)
                     small_iq_w = len(small_iqamat[0])
                     pad_iq = (CARD_W - 2 - small_iq_w) // 2
-                    l6 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l7 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l8 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
+                    l7 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
+                    l8 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
+                    l9 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
+                    l10 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[3]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
                     bot = f"{border_c}╰{'─' * (CARD_W - 2)}╯{RESET}"
                 else:
                     border_c = COLOR_BORDER
@@ -565,13 +582,15 @@ class TerminalDashboard:
                     l2 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[0]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
                     l3 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[1]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
                     l4 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[2]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
-                    l5 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l5 = f"{border_c}│{' ' * pad_w}{text_c}{small_waktu[3]}{' ' * (CARD_W - 2 - small_w - pad_w)}{border_c}│{RESET}"
+                    l6 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}│{RESET}"
                     small_iqamat = self.render_small_clock_lines(iqamat_val)
                     small_iq_w = len(small_iqamat[0])
                     pad_iq = (CARD_W - 2 - small_iq_w) // 2
-                    l6 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l7 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
-                    l8 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
+                    l7 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[0]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
+                    l8 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[1]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
+                    l9 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[2]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
+                    l10 = f"{border_c}│{' ' * pad_iq}{iqamat_val_c}{small_iqamat[3]}{' ' * (CARD_W - 2 - small_iq_w - pad_iq)}{border_c}│{RESET}"
                     bot = f"{border_c}╰{'─' * (CARD_W - 2)}╯{RESET}"
 
                 gap = CARD_GAP
@@ -584,7 +603,9 @@ class TerminalDashboard:
                 card_lines[6] += l6 + gap
                 card_lines[7] += l7 + gap
                 card_lines[8] += l8 + gap
-                card_lines[9] += bot + gap
+                card_lines[9] += l9 + gap
+                card_lines[10] += l10 + gap
+                card_lines[11] += bot + gap
 
             # Lebar total hanya menghitung kartu yang benar-benar di-render
             total_w = chunk_total_w(rendered)
