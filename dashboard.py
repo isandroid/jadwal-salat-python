@@ -222,6 +222,8 @@ class TerminalDashboard:
         self.jadwal_cache: Optional[Dict[str, Any]] = None
         self.last_fetch_date: Optional[date] = None
         self.old_terminal_settings = None
+        # Kartu yang tersembunyi (Subuh, Terbit, Dhuha) — tampilkan sebagai ruang kosong
+        self.HIDDEN_KEYS = {"imsak", "terbit", "dhuha"}
 
     def setup_terminal(self):
         """Menyiapkan terminal: alternate screen, sembunyikan kursor, dan non-blocking raw input."""
@@ -380,17 +382,34 @@ class TerminalDashboard:
 
         jadwal = self.jadwal_cache.get("jadwal", {}) if self.jadwal_cache else {}
 
-        # Cek apakah lebar layar cukup untuk 8 kartu dalam 1 baris
-        # 8 kartu * 13 karakter + 7 celah * 2 karakter = 118 karakter
-        card_w = 13
-        use_single_row = (cols >= 120)
+        # Kartu yang di-HIDE (Subuh, Terbit, Dhuha) - tampilkan sebagai ruang kosong
+        # (nilai tersimpan di self.HIDDEN_KEYS)
+        #
+        # Ukuran kartu diperbesar (34 kolom) supaya waktu salat mudah dilihat
+        # dari kejauhan. Komposisi dibagi 3 kartu atas + 2 kartu bawah (keduanya
+        # di tengah-tengah), dan lebar total dihitung dari kartu yang benar-benar
+        # merender (bukan dari urutan_keys lengkap 8).
 
-        def render_cards_chunk(chunk_keys):
+        CARD_W = 34
+        CARD_GAP = "  "
+
+        def chunk_total_w(count):
+            return count * CARD_W + (count - 1) * len(CARD_GAP)
+
+        def can_fit_single_row(count):
+            return cols >= chunk_total_w(count) + 20
+
+        def render_cards_chunk(keys):
             card_lines = ['', '', '', '', '', '', '']
-            for label, key in chunk_keys:
+            rendered = 0
+            for label, key in keys:
+                # Kartu tersembunyi: biarkan baris kosong, tidak dihitung
+                if key in self.HIDDEN_KEYS:
+                    continue
+                rendered += 1
                 waktu_val = jadwal.get(key, "--:--")
                 is_active = (label == next_prayer)
-                
+
                 # Hitung waktu iqamat jika termasuk 5 waktu salat fardhu
                 iqamat_cfg_key = IQAMAT_KEYS.get(key)
                 if iqamat_cfg_key and iqamat_cfg_key in self.config:
@@ -409,7 +428,7 @@ class TerminalDashboard:
                         j_dt = datetime(today.year, today.month, today.day, j_h, j_m)
                         if now > j_dt and not is_active:
                             is_past = True
-                    except:
+                    except Exception:
                         pass
 
                 if is_active:
@@ -417,39 +436,39 @@ class TerminalDashboard:
                     text_c = COLOR_ACTIVE_CARD + BOLD
                     iqamat_lbl_c = COLOR_ACTIVE_CARD
                     iqamat_val_c = COLOR_ACTIVE_CARD + BOLD
-                    top = f"{border_c}┏{'━' * (card_w - 2)}┓{RESET}"
-                    l1 = f"{border_c}┃{text_c}{label.center(card_w - 2)}{border_c}┃{RESET}"
-                    l2 = f"{border_c}┃{text_c}{waktu_val.center(card_w - 2)}{border_c}┃{RESET}"
-                    l3 = f"{border_c}┃{' '.center(card_w - 2)}{border_c}┃{RESET}"
-                    l4 = f"{border_c}┃{iqamat_lbl_c}{iqamat_lbl.center(card_w - 2)}{border_c}┃{RESET}"
-                    l5 = f"{border_c}┃{iqamat_val_c}{iqamat_val.center(card_w - 2)}{border_c}┃{RESET}"
-                    bot = f"{border_c}┗{'━' * (card_w - 2)}┛{RESET}"
+                    top = f"{border_c}┏{'━' * (CARD_W - 2)}┓{RESET}"
+                    l1 = f"{border_c}┃{text_c}{label.center(CARD_W - 2)}{border_c}┃{RESET}"
+                    l2 = f"{border_c}┃{text_c}{waktu_val.center(CARD_W - 2)}{border_c}┃{RESET}"
+                    l3 = f"{border_c}┃{' '.center(CARD_W - 2)}{border_c}┃{RESET}"
+                    l4 = f"{border_c}┃{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}┃{RESET}"
+                    l5 = f"{border_c}┃{iqamat_val_c}{iqamat_val.center(CARD_W - 2)}{border_c}┃{RESET}"
+                    bot = f"{border_c}┗{'━' * (CARD_W - 2)}┛{RESET}"
                 elif is_past:
                     border_c = COLOR_BORDER_DIM
                     text_c = COLOR_PASSED_CARD
                     iqamat_lbl_c = COLOR_BORDER_DIM
                     iqamat_val_c = COLOR_PASSED_CARD
-                    top = f"{border_c}╭{'─' * (card_w - 2)}╮{RESET}"
-                    l1 = f"{border_c}│{text_c}{label.center(card_w - 2)}{border_c}│{RESET}"
-                    l2 = f"{border_c}│{text_c}{waktu_val.center(card_w - 2)}{border_c}│{RESET}"
-                    l3 = f"{border_c}│{' '.center(card_w - 2)}{border_c}│{RESET}"
-                    l4 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(card_w - 2)}{border_c}│{RESET}"
-                    l5 = f"{border_c}│{iqamat_val_c}{iqamat_val.center(card_w - 2)}{border_c}│{RESET}"
-                    bot = f"{border_c}╰{'─' * (card_w - 2)}╯{RESET}"
+                    top = f"{border_c}╭{'─' * (CARD_W - 2)}╮{RESET}"
+                    l1 = f"{border_c}│{text_c}{label.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l2 = f"{border_c}│{text_c}{waktu_val.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l3 = f"{border_c}│{' '.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l4 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l5 = f"{border_c}│{iqamat_val_c}{iqamat_val.center(CARD_W - 2)}{border_c}│{RESET}"
+                    bot = f"{border_c}╰{'─' * (CARD_W - 2)}╯{RESET}"
                 else:
                     border_c = COLOR_BORDER
                     text_c = COLOR_NORMAL_CARD
                     iqamat_lbl_c = COLOR_IQAMAT_LABEL
                     iqamat_val_c = COLOR_IQAMAT_TIME
-                    top = f"{border_c}╭{'─' * (card_w - 2)}╮{RESET}"
-                    l1 = f"{border_c}│{text_c}{BOLD}{label.center(card_w - 2)}{border_c}│{RESET}"
-                    l2 = f"{border_c}│{text_c}{waktu_val.center(card_w - 2)}{border_c}│{RESET}"
-                    l3 = f"{border_c}│{' '.center(card_w - 2)}{border_c}│{RESET}"
-                    l4 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(card_w - 2)}{border_c}│{RESET}"
-                    l5 = f"{border_c}│{iqamat_val_c}{iqamat_val.center(card_w - 2)}{border_c}│{RESET}"
-                    bot = f"{border_c}╰{'─' * (card_w - 2)}╯{RESET}"
+                    top = f"{border_c}╭{'─' * (CARD_W - 2)}╮{RESET}"
+                    l1 = f"{border_c}│{text_c}{BOLD}{label.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l2 = f"{border_c}│{text_c}{waktu_val.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l3 = f"{border_c}│{' '.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l4 = f"{border_c}│{iqamat_lbl_c}{iqamat_lbl.center(CARD_W - 2)}{border_c}│{RESET}"
+                    l5 = f"{border_c}│{iqamat_val_c}{iqamat_val.center(CARD_W - 2)}{border_c}│{RESET}"
+                    bot = f"{border_c}╰{'─' * (CARD_W - 2)}╯{RESET}"
 
-                gap = "  "
+                gap = CARD_GAP
                 card_lines[0] += top + gap
                 card_lines[1] += l1 + gap
                 card_lines[2] += l2 + gap
@@ -458,72 +477,26 @@ class TerminalDashboard:
                 card_lines[5] += l5 + gap
                 card_lines[6] += bot + gap
 
-            # Hilangkan gap terakhir
-            total_w = len(chunk_keys) * card_w + (len(chunk_keys) - 1) * 2
+            # Lebar total hanya menghitung kartu yang benar-benar di-render
+            total_w = chunk_total_w(rendered)
             cards_pad = " " * ((cols - total_w) // 2)
-            
+
             res_lines = []
             for cl in card_lines:
                 res_lines.append(f"{cards_pad}{cl}")
-            return res_lines
+            return res_lines, total_w
 
-        if use_single_row:
-            output.extend(render_cards_chunk(urutan_keys))
-        else:
-            # 2 baris (4 kartu di baris 1, 4 kartu di baris 2)
-            output.extend(render_cards_chunk(urutan_keys[:4]))
-            output.append("")
-            output.extend(render_cards_chunk(urutan_keys[4:]))
+        visible = [k for k in urutan_keys if k not in self.HIDDEN_KEYS]
 
-        output.append("")
+        if can_fit_single_row(len(visible)):
+            output.extend(render_cards_chunk(urutan_keys)[0])
+            # 2 baris: 3 kartu atas, 2 kartu bawah (masing-masing di tengah)
+            half = (len(visible) + 1) // 2
+            top_keys = visible[:half]
+            bot_keys = visible[half:]
 
-        # 5. FOOTER INFORMASI
-        footer_info = "Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI"
-        footer_pad = " " * ((cols - len(footer_info)) // 2)
-        output.append(f"{footer_pad}{DIM}{footer_info}{RESET}")
-
-        # Tambahkan padding atas jika terminal cukup tinggi (misal pada 1366x768)
-        content_height = len(output)
-        top_margin = max(0, (rows - content_height) // 3)
-        
-        full_screen = "\n" * top_margin + "\n".join(output)
-        return full_screen
-
-    def run(self):
-        """Loop utama dasbor terminal."""
-        self.setup_terminal()
-        try:
-            # Muat jadwal pertama kali
-            self.fetch_jadwal(force=True)
-
-            while self.running:
-                # Periksa apakah pergantian hari (00:00) untuk refresh jadwal
-                today = date.today()
-                if self.last_fetch_date != today:
-                    self.fetch_jadwal(force=True)
-
-                # Render frame
-                frame = self.build_frame()
-                
-                # Tulis frame ke terminal tanpa flicker (\033[H memindahkan kursor ke pojok kiri atas)
-                sys.stdout.write(f"\033[H\033[J{frame}")
-                sys.stdout.flush()
-
-                # Tunggu 1 detik atau deteksi tombol input 'q' secara non-blocking
-                if sys.stdin.isatty():
-                    r, _, _ = select.select([sys.stdin], [], [], 1.0)
-                    if r:
-                        ch = sys.stdin.read(1)
-                        if ch in ('q', 'Q', '\x1b', '\x03'):  # 'q', Esc, atau Ctrl+C
-                            self.running = False
-                else:
-                    time.sleep(1.0)
-
-        except KeyboardInterrupt:
-            self.running = False
-        finally:
-            self.restore_terminal()
-
-if __name__ == "__main__":
-    dashboard = TerminalDashboard()
-    dashboard.run()
+            if top_keys:
+                output.extend(render_cards_chunk(top_keys)[0])
+            if bot_keys:
+                output.append("")
+                output.extend(render_cards_chunk(bot_keys)[0])

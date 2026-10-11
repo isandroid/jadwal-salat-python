@@ -10,10 +10,12 @@ Aplikasi **Dasbor Terminal Jam Digital & Jadwal Salat** otomatis yang dioptimalk
 2. **Jam Digital Real-Time**: Tampilan jam digital besar font blok 5-baris (`HH:MM:SS`) yang berdetak setiap detik secara *smooth* tanpa kedipan (*flicker-free*).
 3. **Lokasi & Kalender**: Menampilkan nama lokasi, ID tempat, tanggal Masehi, dan tanggal Hijriah otomatis.
 4. **Countdown Waktu Salat**: Menghitung mundur menuju waktu salat berikutnya secara *live* setiap detik.
-5. **Kartu Jadwal Salat (8 Waktu)**:
-   - IMSAK, SUBUH, TERBIT, DHUHA, DZUHUR, ASHAR, MAGHRIB, ISYA'.
-   - Waktu salat berikutnya diberi sorotan (*highlight*) warna emas dengan border tebal `┏━┓` dan label `[BERIKUT]`.
+5. **Kartu Jadwal Salat**: Kartu **IMSAK, TERBIT, DHUHA** adalah kartu **tersembunyi** (*hidden*). Kartu yang tampil:
+   - **SUBUH, DZUHUR, ASHAR, MAGHRIB, ISYA'**
+   - Waktu salat berikutnya diberi sorotan (*highlight*) warna emas dengan border tebal dan label `[BERIKUT]`.
    - Waktu yang sudah terlewat diberi efek redup (*dim*).
+
+    > Keberadaan kartu tersembunyi ini disengaja: ukurannya lebih besar agar mudah dilihat dari kejauhan.
 6. **Responsif Layar**:
    - Di layar 1366x768 (atau terminal lebar $\ge$ 120 kolom): Seluruh 8 kartu disusun sejajar dalam 1 baris horizontal.
    - Di terminal lebih kecil (< 120 kolom): Otomatis membagi menjadi 2 baris (4 kartu per baris).
