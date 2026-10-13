@@ -6,6 +6,58 @@ Jam besarnya **persis sama** dengan [peaclock](https://github.com/octobanana/pea
 
 ---
 
+## Ringkasan
+
+| Aspek | Isi |
+|---|---|
+| Tampilan | Jam digital gaya peaclock (font piksel 3 × 5) + grid 3 kolom × 4 baris berbingkai |
+| Isi dasbor | 5 waktu salat (azan + iqamat), jam berdetak, detik, hitung mundur, tanggal Masehi & Hijriah |
+| Sumber data | Bimas Islam Kemenag RI (via [MyQuran Open API](https://api.myquran.com/v2/)) |
+| Penyimpanan | SQLite lokal (`jadwal_salat.db`) — internet cukup **1× per bulan**, sisanya **offline** |
+| Kustomisasi | Lokasi, judul, jeda iqamat per salat, padding, warna ANSI (4/8/24-bit), saklar baris |
+| Adaptif | Ukuran blok, padding, dan header menyesuaikan ukuran terminal; ada mode ringkas `--resolusi` |
+| Mode lain | Mode teks `--cli` (juga jalan offline) |
+
+Aplikasi murni Python + `requests` — tanpa basis data server, tanpa kerangka kerja (framework).
+
+---
+
+## Mulai cepat
+
+### Prasyarat
+
+- **Python 3.8+** (dikembangkan dan diuji pada Python 3.13, Linux).
+- Terminal dengan dukungan **UTF-8**, karakter kotak (`┌ ┬ ┐ …`), dan emoji.
+- Satu-satunya dependensi pihak ketiga: **[`requests`](https://pypi.org/project/requests/)**.
+
+### Instalasi
+
+```bash
+# 1. pastikan Python tersedia
+python3 --version
+
+# 2. pasang dependensi (satu-satunya)
+python3 -m pip install requests
+
+# 3. jalankan dari direktori proyek
+cd jadwal-salat
+python3 main.py
+```
+
+Saat pertama dijalankan, `config.json` dan `jadwal_salat.db` **dibuat otomatis**
+— tidak ada langkah setup lain. Untuk jadwal kota selain KAB. BOGOR, sekali
+jalankan dengan internet lalu pilih lokasi (lihat `--set` di bawah).
+
+### Perintah dasar
+
+```bash
+python3 main.py            # dasbor jam interaktif (tekan q untuk keluar)
+python3 main.py --cli      # jadwal hari ini sebagai teks
+python3 main.py --help     # daftar lengkap perintah
+```
+
+---
+
 ## Bentuk jam (persis peaclock `view digital`)
 
 Diambil langsung dari kode sumber peaclock:
@@ -331,25 +383,105 @@ Tiga baris itu juga bisa dimatikan permanen tanpa `--resolusi`, lewat
 ## Menjalankan
 
 ```bash
-python3 main.py            # dasbor jam (tekan q untuk keluar)
-python3 main.py --cli      # jadwal hari ini sebagai teks
-python3 main.py --config   # lihat konfigurasi tersimpan
+python3 main.py             # dasbor jam (tekan q untuk keluar)
+python3 main.py --dashboard # dasbor — alias eksplisit dari mode bawaan
+python3 main.py --cli       # jadwal hari ini sebagai teks
+python3 main.py Bogor       # jadwal kota tertentu sebagai teks (cari nama kota)
+python3 main.py --config    # lihat konfigurasi tersimpan
 python3 main.py --set "Bogor"          # ganti lokasi (cari nama kota)
 python3 main.py --set-id 1204          # ganti lokasi via ID
 python3 main.py --set-judul "..."      # ganti judul dasbor
-python3 main.py --set-iqamat dzuhur 20 # atur jeda iqamat
+python3 main.py --set-iqamat dzuhur 20 # atur jeda iqamat (subuh/dzuhur/ashar/maghrib/isya)
+python3 main.py --help                 # tampilkan semua perintah
 ```
+
+Keluar dari dasbor: tekan `q`, `Esc`, atau `Ctrl+C`.
+
+### Perintah lengkap
+
+| Perintah | Fungsi |
+|---|---|
+| *(tanpa argumen)* / `--dashboard` | Dasbor terminal interaktif |
+| `--cli` | Jadwal hari ini sebagai teks (dari lokasi di `config.json`) |
+| `<nama_kota>` | Jadwal kota tertentu sebagai teks (mis. `python3 main.py Bogor`) |
+| `--set <nama_kota>` | Cari kota lalu simpan ID + namanya ke `config.json` |
+| `--set-id <id>` | Simpan ID lokasi langsung ke `config.json` |
+| `--set-judul <teks>` | Ubah judul dasbor |
+| `--set-iqamat <salat> <menit>` | Atur jeda iqamat (subuh/dzuhur/ashar/maghrib/isya) |
+| `--config` | Tampilkan konfigurasi tersimpan |
+| `--data` | Tampilkan isi penyimpanan lokal (SQLite) |
+| `--resolusi [WxH]` | Mode ringkas; tanpa argumen → deteksi otomatis (xrandr/DRM) |
+| `--warna` | Lihat palet 256 warna + warna yang dipakai |
+| `--warna <kunci> <nilai>` | Ubah satu warna (mis. `--warna waktu_azan 1;38;5;196`) |
+| `-h`, `--help` | Tampilkan bantuan |
 
 ---
 
-## Berkas
+## Referensi `config.json`
+
+Semua kunci dikelola `config.py`. Kunci yang belum ada diisi otomatis dengan
+nilai bawaan saat konfigurasi dibaca. Sebagian besar bisa diubah lewat CLI
+(`--set`, `--set-id`, `--set-judul`, `--set-iqamat`, `--warna`); sisanya bisa
+disunting langsung lalu jalankan ulang aplikasi.
+
+| Kunci | Bawaan | Fungsi |
+|---|---|---|
+| `judul` | `"Jadwal Salat Masjid Nasr"` | judul dasbor (huruf besar + jarak antar huruf bila muat) |
+| `lokasi_id` | `"1204"` | ID kota untuk pengambilan jadwal |
+| `lokasi_nama` | `"KAB. BOGOR"` | nama lokasi yang tampil di header |
+| `subuh_iqamat` | `15` | jeda iqamat Subuh (menit setelah azan) |
+| `dzuhur_iqamat` | `20` | jeda iqamat Dzuhur |
+| `ashar_iqamat` | `15` | jeda iqamat Ashar |
+| `maghrib_iqamat` | `10` | jeda iqamat Maghrib |
+| `isya_iqamat` | `15` | jeda iqamat Isya' |
+| `padding_atas` | `2` | baris kosong minimum di atas tampilan |
+| `padding_bawah` | `2` | baris kosong minimum di bawah tampilan |
+| `padding_ratakan` | `true` | `true` = sisa ruang dibagi rata (tampilan di tengah) |
+| `kolon_berkedip` | `false` | `true` = titik dua jam berkedip tiap detik |
+| `warna` | `{}` | kunci warna yang diubah saja (lihat bagian **Warna**) |
+| `tampilkan_lokasi` | `true` | `false` = sembunyikan baris 📍 Lokasi |
+| `tampilkan_hitung_mundur` | `true` | `false` = sembunyikan baris ⏳ Menuju Waktu |
+| `tampilkan_footer` | `true` | `false` = sembunyikan baris petunjuk + sumber data |
+| `ukuran_sel` | `"8x18"` | perkiraan ukuran 1 sel karakter (px) untuk `--resolusi` |
+
+Catatan: isi `config.json` bisa berbeda dari tabel bawaan bila sudah pernah
+diubah (mis. jeda iqamat pada proyek ini: Dzuhur 30, Ashar 20, Maghrib 15).
+
+---
+
+## Struktur proyek
 
 | Berkas | Keterangan |
 |---|---|
-| `dashboard.py` | Dasbor + renderer jam peaclock digital & `cfg/default` |
-| `main.py` | Entry point CLI |
-| `config.py` / `config.json` | Judul, lokasi, jeda iqamat |
-| `api_client.py` | Klien MyQuran Open API (Bimas Islam Kemenag) |
-| `bimasislam_client.py` | Klien langsung situs Bimas Islam |
+| `main.py` | Entry point CLI — seluruh perintah argumen |
+| `dashboard.py` | Dasbor: renderer jam peaclock, grid 3 × 4, header/footer, loop interaktif |
+| `config.py` | Baca/tulis `config.json` + definisi nilai bawaan |
+| `config.json` | Konfigurasi (dibuat otomatis bila belum ada) |
+| `api_client.py` | Klien MyQuran Open API — cari kota, jadwal harian & bulanan |
+| `bimasislam_client.py` | Klien alternatif langsung situs Bimas Islam — **tidak dipakai** alur utama |
+| `cache.py` | Penyimpanan lokal SQLite (`jadwal_salat.db`) |
+| `jadwal_salat.db` | Data jadwal lokal (dibuat otomatis, tidak ikut di-commit) |
+| `debug_cards.py` | Skrip debug lama untuk memeriksa render kartu |
+
+Alur data: `main.py` → `dashboard.py` → `cache.py` (bila bulan sudah lengkap,
+tanpa internet) → `api_client.py` (hanya bila perlu unduh).
+
+---
+
+## Pemecahan masalah
+
+| Gejala | Penyebab / solusi |
+|---|---|
+| `ModuleNotFoundError: No module named 'requests'` | `python3 -m pip install requests` |
+| Pesan *"belum ada data"* / *"Gagal memuat jadwal"* | Belum pernah terunduh. Jalankan sekali dengan koneksi internet, lalu cek `python3 main.py --data` |
+| Ingin unduh ulang jadwal dari awal | Hapus `jadwal_salat.db` (aman — dibuat ulang otomatis), lalu jalankan dengan internet |
+| Tampilan terpotong / tidak muat | Perbesar terminal (ideal ≥ 160 kolom), atau pakai mode `python3 main.py --resolusi 1280x720`; ukuran bisa dicek dengan `stty size` |
+| Dasbor berantakan saat output di-pipe/direkam | Ukuran tty tidak terbaca → sertakan `--resolusi WxH` |
+| Garis bingkai atau emoji meleset lebar | Pakai font monospace dengan dukungan emoji + karakter kotak unicode, dan locale UTF-8 (`echo $LANG`) |
+| Internet mati | Tidak masalah — footer menampilkan *"offline — pakai data tersimpan"*, jadwal diambil dari SQLite |
+| Data terasa basi / tidak diperbarui | Dasbor otomatis mengambil ulang saat tanggal berganti; bulan berikutnya disiapkan sejak tanggal 25 |
+| Lokasi lama masih muncul di `--data` | Cache disimpan per kota — data lama aman dibiarkan |
+
+---
 
 Sumber data jadwal salat: Bimas Islam Kemenag RI.
