@@ -225,6 +225,23 @@ PRAYER_ORDER = [
     ("ISYA'", "isya"),
 ]
 
+def sekarang() -> datetime:
+    """Waktu sekarang. Bisa dipaksa untuk uji/tangkapan layar: DASDOR_JAM=15:30 (jam:menit).
+
+    Dipakai supaya perilaku sorotan bisa dibuktikan pada jam berapa pun tanpa menunggu waktu
+    nyata — mis. "pada 15:30 harus ASHAR yang kuning, pada 18:30 harus MAGHRIB".
+    """
+    paksa = os.environ.get("DASDOR_JAM")
+    if paksa:
+        try:
+            j, m = (int(x) for x in paksa.strip().split(":")[:2])
+            d = datetime.now()
+            return d.replace(hour=j % 24, minute=m % 60, second=0, microsecond=0)
+        except (ValueError, TypeError):
+            pass
+    return datetime.now()
+
+
 def build_prayer_compact(entries, cols: int, highlight: int = -1, sep: int = 3) -> List[str]:
     """Cadangan untuk terminal sempit: daftar teks ringkas, dibungkus sesuai lebar."""
     items = []
@@ -286,6 +303,12 @@ BOX_BL, BOX_BM, BOX_BR = "└", "┴", "┘"
 ROW_LINES_FULL = [6, 6, 6, 6]
 ROW_LINES_COMPACT = [6, 5, 6, 5]
 
+# Lebar bantalan kiri-kanan maksimum di dalam sel (kolom). Dipakai choose_grid
+# untuk melebarkan grid agar mengisi layar lebar TANPA mengubah ukuran blok
+# digit jam (proporsi titik 2 karakter x 1 baris tetap). Turunkan bila ingin
+# panel lebih rapat.
+PANEL_PAD_MAKS = 8
+
 
 # Garis pemisah yang dihilangkan karena selnya menyatu.
 #   indeks = nomor garis pemisah (setelah baris ke-N), nilai = kolom yang menyatu
@@ -306,6 +329,11 @@ def choose_grid(cols: int, rows: int, header_h: int, footer_h: int):
     """Pilih (block_w, inner_w, pad, row_lines) terbesar yang muat lebar & tinggi.
 
     Lebar total = GRID_COLS * (inner_w + 2*pad) + (GRID_COLS + 1)
+
+    `pad` adalah lebar bantalan KIRI-KANAN di dalam tiap sel. Nilai bantalan
+    dicoba dari yang paling lebar (PANEL_PAD_MAKS) supaya grid mengisi lebar
+    layar sepenuhnya tanpa mengubah ukuran blok digit -> bentuk jam (rasio
+    titik 2 karakter x 1 baris) tetap benar di layar lebar.
     """
     avail_h = rows - header_h - footer_h
     for row_lines in (ROW_LINES_FULL, ROW_LINES_COMPACT):
@@ -313,7 +341,7 @@ def choose_grid(cols: int, rows: int, header_h: int, footer_h: int):
             continue
         for bw in (4, 3, 2, 1):
             inner_w = NCOL_NOSEC * bw
-            for pad in (2, 1, 0):
+            for pad in range(PANEL_PAD_MAKS, -1, -1):
                 if GRID_COLS * (inner_w + 2 * pad) + (GRID_COLS + 1) <= cols:
                     return bw, inner_w, pad, row_lines
     return None
@@ -548,11 +576,18 @@ class TerminalDashboard:
         return shutil.get_terminal_size((120, 36))
 
     def _saklar(self) -> Dict[str, bool]:
-        """Saklar tampilan: mode ringkas menang atas config.json."""
+        """Saklar tampilan: mode ringkas menang atas config.json.
+
+        Mode ringkas (--resolusi) menyembunyikan lokasi, hitung mundur, footer,
+        sekaligus JUDUL dan TANGGAL. Dua baris terakhir itu diberikan kepada
+        grid supaya baris label IQAMAT dan baris DETIK jam tidak terpotong.
+        """
         return {
-            "lokasi":       (not self.ringkas) and bool(self.config.get("tampilkan_lokasi", True)),
+            "judul":         (not self.ringkas) and bool(self.config.get("tampilkan_judul", True)),
+            "tanggal":       (not self.ringkas) and bool(self.config.get("tampilkan_tanggal", True)),
+            "lokasi":        (not self.ringkas) and bool(self.config.get("tampilkan_lokasi", True)),
             "hitung_mundur": (not self.ringkas) and bool(self.config.get("tampilkan_hitung_mundur", True)),
-            "footer":       (not self.ringkas) and bool(self.config.get("tampilkan_footer", True)),
+            "footer":        (not self.ringkas) and bool(self.config.get("tampilkan_footer", True)),
         }
 
     def _unduh_bulan(self, kota_id: str, tahun: int, bulan: int) -> bool:
@@ -672,7 +707,7 @@ class TerminalDashboard:
         return out
 
     def next_prayer_index(self, now_dt: datetime) -> int:
-        """Indeks kartu waktu salat berikutnya (untuk disorot), -1 bila tidak ada."""
+        """Indeks kartu waktu salat berikutnya (untuk hitung mundur), -1 bila tidak ada."""
         jadwal = (self.jadwal_cache or {}).get("jadwal") or {}
         today = now_dt.date()
         for i, (_, key) in enumerate(PRAYER_ORDER):
@@ -684,11 +719,32 @@ class TerminalDashboard:
                 return i
         return -1
 
+    def prayer_aktif_index(self, now_dt: datetime) -> int:
+        """Indeks waktu salat yang SEDANG BERJALAN — azannya sudah masuk, waktu berikutnya belum.
+
+        Ini yang disorot kuning (permintaan Isa, 12 Okt 2026): kalau sekarang waktu Ashar, maka
+        ASHAR dan IQAMAT-nya yang kuning — bukan Maghrib. Maghrib baru kuning setelah azan
+        Maghrib masuk. Sebelum Subuh tidak ada yang kuning: belum ada waktu yang masuk hari ini.
+        """
+        jadwal = (self.jadwal_cache or {}).get("jadwal") or {}
+        today = now_dt.date()
+        aktif = -1
+        for i, (_, key) in enumerate(PRAYER_ORDER):
+            val = jadwal.get(key)
+            if not val:
+                continue
+            hh, mm = map(int, val.split(":"))
+            if datetime(today.year, today.month, today.day, hh, mm, 0) <= now_dt:
+                aktif = i                     # terus maju: yang terakhir terlewati = yang berjalan
+            else:
+                break
+        return aktif
+
     def build_frame(self) -> str:
         uk = self.ukuran_terminal()
         cols, rows = uk.columns, uk.lines
         saklar = self._saklar()
-        now = datetime.now()
+        now = sekarang()                 # DASDOR_JAM=<HH:MM> bisa memaksa jam untuk uji
         today = now.date()
 
         judul = self.config.get("judul", "Jadwal Salat Masjid Nasr")
@@ -731,10 +787,13 @@ class TerminalDashboard:
         lokasi_line = center_line(f"{COLOR_SUBTITLE}{lokasi_str}{RESET}", cols)
         tanggal_line = center_line(f"{COLOR_SUBTITLE}{tanggal_str}{RESET}", cols)
         cd_line = center_line(f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}", cols)
-        baris_header = [judul_line]
+        baris_header = []
+        if saklar["judul"]:
+            baris_header.append(judul_line)
         if saklar["lokasi"]:
             baris_header.append(lokasi_line)
-        baris_header.append(tanggal_line)
+        if saklar["tanggal"]:
+            baris_header.append(tanggal_line)
         if saklar["hitung_mundur"]:
             baris_header.append(cd_line)
         # menyusut dari belakang: hitung mundur -> tanggal -> lokasi (judul selalu tampil)
@@ -755,14 +814,24 @@ class TerminalDashboard:
                 seen.add(pair); pad_steps.append(pair)
         top_pad, bottom_pad = pad_steps[0]
         footer_pilihan = (2, 1) if saklar["footer"] else (1, 0)
-        for tp, bp in pad_steps:
-            for fh in footer_pilihan:     # 2 = baris kosong + footer, 1 = footer saja
-                for hdr in header_candidates:
-                    chosen = choose_grid(cols, rows, len(hdr) + tp, fh + bp)
-                    if chosen:
+        # Dua lintasan: utamakan grid PENUH (baris label IQAMAT tampil + baris
+        # DETIK utuh), baru kemudian varian ringkas. Di dalam setiap lintasan,
+        # padding terbesar yang muat tetap dipilih lebih dulu.
+        for wajib_penuh in (True, False):
+            for tp, bp in pad_steps:
+                for fh in footer_pilihan:  # 2 = baris kosong + footer, 1 = footer saja
+                    for hdr in header_candidates:
+                        cand = choose_grid(cols, rows, len(hdr) + tp, fh + bp)
+                        if not cand:
+                            continue
+                        if wajib_penuh and cand[3] != ROW_LINES_FULL:
+                            continue
+                        chosen = cand
                         out.extend(hdr)
                         footer_gap = fh - 1
                         top_pad, bottom_pad = tp, bp
+                        break
+                    if chosen:
                         break
                 if chosen:
                     break
@@ -778,11 +847,15 @@ class TerminalDashboard:
                 colon_on = True
             cells = build_cells(now, self.prayer_iqamat_entries(), grid_bw,
                                 colon_on, row_lines,
-                                highlight=self.next_prayer_index(now))
-            out.extend(render_grid(cells, cols, inner_w, grid_pad, row_lines))
+                                highlight=self.prayer_aktif_index(now))
+            # render_grid menghasilkan baris rata-kiri; di sini ditengahkan
+            # agar sisa lebar terbagi rata (tampilan simetris di layar lebar).
+            for garis in render_grid(cells, cols, inner_w, grid_pad, row_lines):
+                sisa = max(0, cols - visible_width(garis))
+                out.append(" " * (sisa // 2) + garis)
         else:                                       # terminal sangat sempit
             out.extend(build_prayer_compact(self.prayer_iqamat_entries(), cols,
-                                            highlight=self.next_prayer_index(now)))
+                                            highlight=self.prayer_aktif_index(now)))
             out.append(center_line(f"{COLOR_COUNTDOWN}{BOLD}{cd_text}{RESET}", cols))
         if footer_gap:
             out.append("")
@@ -806,15 +879,22 @@ class TerminalDashboard:
             "offline": "offline — pakai data tersimpan",
             "kosong": "belum ada data",
         }.get(self.sumber_data, "")
-        footer = "Tekan [q] atau [Ctrl+C] untuk keluar  •  Sumber Data: Bimas Islam Kemenag RI"
+        # Petunjuk keluar menyesuaikan saklar "keluar_dengan_q_esc" — jangan
+        # menyuruh menekan tombol yang sudah dimatikan.
+        if self.config.get("keluar_dengan_q_esc", True):
+            petunjuk, petunjuk_pendek = ("Tekan [q] atau [Ctrl+C] untuk keluar",
+                                         "Tekan [q] untuk keluar")
+        else:
+            petunjuk = petunjuk_pendek = "Tekan [Ctrl+C] untuk keluar"
+        footer = f"{petunjuk}  •  Sumber Data: Bimas Islam Kemenag RI"
         if status:
             footer += f"  •  {status}"
         if visible_width(footer) > cols - 2:
-            footer = "Tekan [q] untuk keluar  •  Bimas Islam Kemenag RI"
+            footer = f"{petunjuk_pendek}  •  Bimas Islam Kemenag RI"
             if status:
                 footer += f"  •  {status}"
         if visible_width(footer) > cols - 2:
-            footer = "Tekan [q] untuk keluar"
+            footer = petunjuk_pendek
         out.append(center_line(f"{DIM}{footer}{RESET}", cols))
 
         # padding atas/bawah; sisa ruang dibagi rata (mode daftar ringkas)
@@ -834,6 +914,13 @@ class TerminalDashboard:
 
     def run(self):
         self.setup_terminal()
+        # Tombol keluar. Bawaannya: q / Q / Esc / Ctrl+C.
+        # Bila config "keluar_dengan_q_esc": false, HANYA Ctrl+C yang menutup —
+        # supaya tampilan di layar masjid tidak mati karena satu sentuhan tombol.
+        if self.config.get("keluar_dengan_q_esc", True):
+            tombol_keluar = ("q", "Q", "\x1b", "\x03")
+        else:
+            tombol_keluar = ("\x03",)
         try:
             self.fetch_jadwal(force=True)
             while self.running:
@@ -843,7 +930,7 @@ class TerminalDashboard:
                 sys.stdout.flush()
                 if sys.stdin.isatty():
                     r, _, _ = select.select([sys.stdin], [], [], 1.0)
-                    if r and sys.stdin.read(1) in ("q", "Q", "\x1b", "\x03"):
+                    if r and sys.stdin.read(1) in tombol_keluar:
                         self.running = False
                 else:
                     time.sleep(1.0)

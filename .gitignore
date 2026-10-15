@@ -3,3 +3,5 @@ __pycache__/
 # basis data jadwal salat lokal (dibuat otomatis)
 jadwal_salat.db
 jadwal_salat.db-journal
+# lingkungan virtual
+.venv/
